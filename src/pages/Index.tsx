@@ -1,13 +1,15 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import ParticleBackground from '@/components/ParticleBackground';
+import AboutCard from '@/components/AboutCard';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <main className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 px-4 overflow-hidden">
+      <ParticleBackground />
+      <div className="relative z-10 w-full max-w-4xl mx-auto">
+        <AboutCard />
       </div>
-    </div>
+    </main>
   );
 };
 
