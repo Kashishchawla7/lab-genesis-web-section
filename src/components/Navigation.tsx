@@ -1,11 +1,31 @@
 
 import { Button } from "@/components/ui/button"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+import { useAuth } from "./AuthProvider"
+import { supabase } from "@/integrations/supabase/client"
+import { useToast } from "@/components/ui/use-toast"
 
 const Navigation = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
   const scrollToAbout = () => {
     const aboutSection = document.getElementById('about-section');
     aboutSection?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error signing out",
+        description: error.message
+      });
+    } else {
+      navigate("/");
+    }
   };
 
   return (
@@ -17,12 +37,20 @@ const Navigation = () => {
           </div>
           <div className="flex space-x-4">
             <Button variant="ghost" onClick={scrollToAbout}>About</Button>
-            <Button variant="ghost" asChild>
-              <Link to="/login">Login</Link>
-            </Button>
-            <Button asChild>
-              <Link to="/book">Book Test</Link>
-            </Button>
+            {user ? (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/book">Book Test</Link>
+                </Button>
+                <Button variant="outline" onClick={handleSignOut}>
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <Button asChild>
+                <Link to="/auth">Sign In</Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
