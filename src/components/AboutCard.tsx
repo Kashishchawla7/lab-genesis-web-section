@@ -11,7 +11,7 @@ const AboutCard = () => {
           About Us
         </h2>
         <p className="text-gray-800 text-lg leading-relaxed mb-8">
-          At NexusLab Pharmaceuticals, we are committed to advancing healthcare through innovative pharmaceutical research and precision laboratory solutions. With cutting-edge technology and a dedicated team of scientists, we strive to make a meaningful impact on global wellness.
+          At Ahuja Lab Pharmaceuticals, we are committed to advancing healthcare through innovative pharmaceutical research and precision laboratory solutions. With cutting-edge technology and a dedicated team of scientists, we strive to make a meaningful impact on global wellness.
         </p>
         <div className="flex justify-center space-x-8 mt-8">
           <a 
