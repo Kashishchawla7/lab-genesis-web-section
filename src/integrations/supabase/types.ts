@@ -89,6 +89,51 @@ export type Database = {
         }
         Relationships: []
       }
+      roles: {
+        Row: {
+          created_at: string
+          id: string
+          menu_items: Json
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          menu_items?: Json
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          menu_items?: Json
+          name?: string
+        }
+        Relationships: []
+      }
+      test_categories: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          name: string
+          tests: Json
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          name: string
+          tests?: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          tests?: Json
+        }
+        Relationships: []
+      }
       test_packages: {
         Row: {
           created_at: string
