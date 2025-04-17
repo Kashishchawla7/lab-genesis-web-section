@@ -1,3 +1,4 @@
+
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -11,33 +12,33 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user } = useAuth();
 
-  const { data: role } = useQuery({
+  const { data: role, isLoading } = useQuery({
     queryKey: ["userRole", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role_id")
-        .eq("user_id", user.id)
-        .single<{ role_id: string }>();
-
-      if (error || !data) throw error || new Error("No role found");
 
       const { data: roleData, error: roleError } = await supabase
         .from("roles")
         .select("name")
-        .eq("id", data.role_id)
+        .eq("id", user.id)
         .single();
 
-      if (roleError) throw roleError;
-      return roleData as { name: string };
+      if (roleError) {
+        console.error("Error fetching user role:", roleError);
+        return null;
+      }
+
+      return roleData as { name: string } | null;
     },
     enabled: !!user,
   });
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
   if (allowedRoles && (!role || !allowedRoles.includes(role.name))) {
