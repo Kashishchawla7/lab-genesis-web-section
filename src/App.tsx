@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +12,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Navigation from "@/components/Navigation";
 import ManageTests from "@/pages/ManageTests";
+import RoleConfig from "@/pages/RoleConfig"; // Add this import
 
 const queryClient = new QueryClient();
 
@@ -35,6 +37,11 @@ const App = () => (
                 <ManageTests />
               </ProtectedRoute>
             } />
+            <Route path="/role-config" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <RoleConfig />
+              </ProtectedRoute>
+            } /> {/* Add this route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
