@@ -1,4 +1,3 @@
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -22,7 +21,7 @@ import {
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2, Plus, X } from "lucide-react";
 
 const packageSchema = z.object({
@@ -76,6 +75,7 @@ const TestCategoryForm = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [testInputs, setTestInputs] = useState<string[]>(['']);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof packageSchema>>({
     resolver: zodResolver(packageSchema),
@@ -157,6 +157,8 @@ const TestCategoryForm = () => {
 
   const onSubmit = async (values: z.infer<typeof packageSchema>) => {
     try {
+      console.log("Submitting form values:", values);
+      
       if (editingId) {
         // Update package
         const { error: packageError } = await supabase
@@ -216,6 +218,8 @@ const TestCategoryForm = () => {
 
         if (packageError) throw packageError;
 
+        console.log("Package created:", packageData);
+
         // Add tests
         const packageId = packageData[0].id;
         const testsToInsert = values.tests
@@ -226,12 +230,16 @@ const TestCategoryForm = () => {
             type_id: values.typeId
           }));
 
+        console.log("Tests to insert:", testsToInsert);
+
         if (testsToInsert.length > 0) {
-          const { error: testsError } = await supabase
+          const { data: testsData, error: testsError } = await supabase
             .from("tests")
-            .insert(testsToInsert);
+            .insert(testsToInsert)
+            .select();
 
           if (testsError) throw testsError;
+          console.log("Tests created:", testsData);
         }
 
         toast({
@@ -243,9 +251,11 @@ const TestCategoryForm = () => {
       form.reset();
       setEditingId(null);
       setTestInputs(['']);
+      queryClient.invalidateQueries({queryKey: ["packages"]});
+      queryClient.invalidateQueries({queryKey: ["testPackages"]});
       refetch();
     } catch (error) {
-      console.error(error);
+      console.error("Error saving package:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -297,6 +307,8 @@ const TestCategoryForm = () => {
         title: "Success",
         description: "Package deleted successfully",
       });
+      queryClient.invalidateQueries({queryKey: ["packages"]});
+      queryClient.invalidateQueries({queryKey: ["testPackages"]});
       refetch();
     } catch (error) {
       toast({
@@ -504,9 +516,13 @@ const TestCategoryForm = () => {
                             {pkg.level_name && <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full">{pkg.level_name}</span>}
                           </div>
                           <div className="space-y-1">
-                            {pkg.tests.map((test, index) => (
-                              <p key={index} className="text-sm text-gray-600">• {test.name}</p>
-                            ))}
+                            {pkg.tests && pkg.tests.length > 0 ? (
+                              pkg.tests.map((test, index) => (
+                                <p key={index} className="text-sm text-gray-600">• {test.name}</p>
+                              ))
+                            ) : (
+                              <p className="text-sm text-gray-500">No tests added</p>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-lg font-semibold text-blue-600">₹{pkg.new_price}</span>

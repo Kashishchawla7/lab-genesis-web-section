@@ -96,10 +96,11 @@ const TestCategories = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
+      <h2 className="text-xl font-semibold mb-4">Available Test Packages</h2>
       {packages.map((pkg) => (
         <div
           key={pkg.id}
-          className="border rounded-lg overflow-hidden bg-white"
+          className="border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow transition-shadow"
         >
           <Button
             variant="ghost"
@@ -130,19 +131,20 @@ const TestCategories = () => {
           {expandedCategory === pkg.id && (
             <div className="p-4 border-t bg-gray-50">
               <div className="space-y-4">
-                {pkg.tests.map((test) => (
-                  <div
-                    key={test.id}
-                    className="p-4 bg-white rounded-lg border"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">{test.name}</h4>
+                {pkg.tests && pkg.tests.length > 0 ? (
+                  pkg.tests.map((test) => (
+                    <div
+                      key={test.id}
+                      className="p-3 bg-white rounded-lg border"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">{test.name}</h4>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                {pkg.tests.length === 0 && (
+                  ))
+                ) : (
                   <p className="text-center text-gray-500 py-2">No tests added to this package yet.</p>
                 )}
                 <div className="text-right pt-2">

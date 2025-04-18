@@ -2,6 +2,7 @@
 import { useState } from "react";
 import TestManagement from "@/components/TestManagement";
 import TestCategoryForm from "@/components/TestCategoryForm";
+import TestCategories from "@/components/TestCategories";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ManageTests = () => {
@@ -13,6 +14,7 @@ const ManageTests = () => {
         <TabsList className="mb-6">
           <TabsTrigger value="packages">Test Packages</TabsTrigger>
           <TabsTrigger value="tests">Individual Tests</TabsTrigger>
+          <TabsTrigger value="view">View Packages</TabsTrigger>
         </TabsList>
         
         <TabsContent value="packages">
@@ -21,6 +23,10 @@ const ManageTests = () => {
         
         <TabsContent value="tests">
           <TestManagement />
+        </TabsContent>
+
+        <TabsContent value="view">
+          <TestCategories />
         </TabsContent>
       </Tabs>
     </div>
