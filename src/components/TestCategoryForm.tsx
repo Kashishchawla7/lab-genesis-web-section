@@ -12,554 +12,442 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, X } from "lucide-react";
 
 const testSchema = z.object({
-  testName: z.string().min(2, "Test name must be at least 2 characters"),
-  oldPrice: z.string().min(1, "Old price is required"),
-  newPrice: z.string().min(1, "New price is required"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
+  name: z.string().min(2, "Package name must be at least 2 characters"),
+  type: z.enum(["fever", "health"]),
+  level: z.enum(["basic", "advance", "essential", "master"]),
+  price: z.string().min(1, "Price is required"),
+  tests: z.array(z.string()).min(1, "At least one test is required"),
 });
 
-const categorySchema = z.object({
-  categoryName: z.string().min(2, "Category name must be at least 2 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
-});
-
-interface Test {
-  id?: string;
-  testName: string;
-  oldPrice: string;
-  newPrice: string;
-  description: string;
-  categoryId?: string;
-}
-
-interface TestCategory {
+interface DatabaseTestPackage {
   id: string;
   name: string;
-  description: string;
+  type: "fever" | "health";
+  level: "basic" | "advance" | "essential" | "master";
+  price: number;
+  tests: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface TestPackage {
+  id?: string;
+  name: string;
+  type: "fever" | "health";
+  level: "basic" | "advance" | "essential" | "master";
+  price: string;
+  tests: string[];
 }
 
 const TestCategoryForm = () => {
-  const [tests, setTests] = useState<Test[]>([]);
-  const [editingTestIndex, setEditingTestIndex] = useState<number | null>(null);
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [testInputs, setTestInputs] = useState<string[]>(['']);
   const { toast } = useToast();
 
-  const { data: categories, refetch: refetchCategories } = useQuery({
-    queryKey: ["testMainCategories"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("test_categories")
-        .select("*");
-      
-      if (error) throw error;
-      return data as TestCategory[];
-    },
-  });
-
-  const { data: testItems, refetch: refetchTestItems } = useQuery({
-    queryKey: ["testItems"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("test_items")
-        .select("*");
-      
-      if (error) throw error;
-      return (data as unknown as Test[]) || [];
-    },
-  });
-
-  const testForm = useForm<z.infer<typeof testSchema>>({
+  const form = useForm<z.infer<typeof testSchema>>({
     resolver: zodResolver(testSchema),
     defaultValues: {
-      testName: "",
-      oldPrice: "",
-      newPrice: "",
-      description: "",
+      name: "",
+      type: "fever",
+      level: "basic",
+      price: "",
+      tests: [''],
     },
   });
 
-  const categoryForm = useForm<z.infer<typeof categorySchema>>({
-    resolver: zodResolver(categorySchema),
-    defaultValues: {
-      categoryName: "",
-      description: "",
+  const { data: packages, refetch } = useQuery({
+    queryKey: ["testPackages"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("test_packages")
+        .select("*")
+        .order('type')
+        .order('level');
+      
+      if (error) throw error;
+      return (data as DatabaseTestPackage[]).map(pkg => ({
+        id: pkg.id,
+        name: pkg.name,
+        type: pkg.type,
+        level: pkg.level,
+        price: pkg.price.toString(),
+        tests: pkg.tests
+      }));
     },
   });
 
-  const onTestSubmit = (values: z.infer<typeof testSchema>) => {
-    if (editingTestIndex !== null) {
-      const updatedTests = [...tests];
-      updatedTests[editingTestIndex] = values;
-      setTests(updatedTests);
-      setEditingTestIndex(null);
-    } else {
-      setTests([...tests, values]);
-    }
-    testForm.reset();
-    toast({
-      title: "Success",
-      description: editingTestIndex !== null 
-        ? "Test updated successfully" 
-        : "Test added successfully",
-    });
-  };
-
-  const onCategorySubmit = async (values: z.infer<typeof categorySchema>) => {
+  const onSubmit = async (values: z.infer<typeof testSchema>) => {
     try {
-      if (editingCategoryId) {
-        // Update existing category
+      if (editingId) {
         const { error } = await supabase
-          .from("test_categories")
+          .from("test_packages")
           .update({
-            name: values.categoryName,
-            description: values.description,
+            name: values.name,
+            type: values.type,
+            level: values.level,
+            price: parseFloat(values.price),
+            tests: values.tests,
           })
-          .eq("id", editingCategoryId);
+          .eq("id", editingId);
 
         if (error) throw error;
-
-        // Update test items
-        for (const test of tests) {
-          if (test.id) {
-            // Update existing test
-            const { error: testError } = await supabase
-              .from("test_items")
-              .update({
-                testName: test.testName,
-                oldPrice: test.oldPrice,
-                newPrice: test.newPrice,
-                description: test.description,
-              })
-              .eq("id", test.id);
-
-            if (testError) throw testError;
-          } else {
-            // Insert new test
-            const { error: testError } = await supabase
-              .from("test_items")
-              .insert({
-                testName: test.testName,
-                oldPrice: test.oldPrice,
-                newPrice: test.newPrice,
-                description: test.description,
-                categoryId: editingCategoryId,
-              });
-
-            if (testError) throw testError;
-          }
-        }
-
         toast({
           title: "Success",
-          description: "Category updated successfully",
+          description: "Package updated successfully",
         });
       } else {
-        // Create new category
-        const { data: category, error: categoryError } = await supabase
-          .from("test_categories")
+        const { error } = await supabase
+          .from("test_packages")
           .insert({
-            name: values.categoryName,
-            description: values.description,
-          })
-          .select()
-          .single();
+            name: values.name,
+            type: values.type,
+            level: values.level,
+            price: parseFloat(values.price),
+            tests: values.tests,
+          } as DatabaseTestPackage);
 
-        if (categoryError) throw categoryError;
-
-        // Insert test items
-        for (const test of tests) {
-          const { error: testError } = await supabase
-            .from("test_items")
-            .insert({
-              testName: test.testName,
-              oldPrice: test.oldPrice,
-              newPrice: test.newPrice,
-              description: test.description,
-              categoryId: category.id,
-            });
-
-          if (testError) throw testError;
-        }
-
+        if (error) throw error;
         toast({
           title: "Success",
-          description: "Category created successfully",
+          description: "Package created successfully",
         });
       }
       
-      // Reset forms
-      categoryForm.reset();
-      setTests([]);
-      setEditingCategoryId(null);
-      refetchCategories();
-      refetchTestItems();
+      form.reset();
+      setEditingId(null);
+      refetch();
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save category",
+        description: "Failed to save package",
       });
     }
   };
 
-  const editCategory = async (category: TestCategory) => {
-    categoryForm.reset({
-      categoryName: category.name,
-      description: category.description,
+  const addTestInput = () => {
+    setTestInputs([...testInputs, '']);
+    form.setValue('tests', [...form.getValues('tests'), '']);
+  };
+
+  const removeTestInput = (index: number) => {
+    const newTests = testInputs.filter((_, i) => i !== index);
+    setTestInputs(newTests);
+    form.setValue('tests', newTests);
+  };
+
+  const handleTestChange = (index: number, value: string) => {
+    const newTests = [...testInputs];
+    newTests[index] = value;
+    setTestInputs(newTests);
+    form.setValue('tests', newTests);
+  };
+
+  const editPackage = (pkg: TestPackage) => {
+    form.reset({
+      name: pkg.name,
+      type: pkg.type,
+      level: pkg.level,
+      price: pkg.price,
+      tests: pkg.tests,
     });
-    
-    // Fetch test items for this category
-    const { data: categoryTests, error } = await supabase
-      .from("test_items")
-      .select("*")
-      .eq("categoryId", category.id);
-
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch test items",
-      });
-      return;
-    }
-
-    setTests(categoryTests || []);
-    setEditingCategoryId(category.id);
+    setTestInputs(pkg.tests);
+    setEditingId(pkg.id);
   };
 
-  const deleteCategory = async (id: string) => {
+  const deletePackage = async (id: string) => {
     try {
-      // First delete all test items for this category
-      const { error: testError } = await supabase
-        .from("test_items")
-        .delete()
-        .eq("categoryId", id);
-
-      if (testError) throw testError;
-
-      // Then delete the category
-      const { error: categoryError } = await supabase
-        .from("test_categories")
+      const { error } = await supabase
+        .from("test_packages")
         .delete()
         .eq("id", id);
 
-      if (categoryError) throw categoryError;
-
+      if (error) throw error;
       toast({
         title: "Success",
-        description: "Category deleted successfully",
+        description: "Package deleted successfully",
       });
-      refetchCategories();
-      refetchTestItems();
+      refetch();
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to delete category",
+        description: "Failed to delete package",
       });
     }
   };
 
-  const editTest = (index: number) => {
-    const test = tests[index];
-    testForm.reset({
-      testName: test.testName,
-      oldPrice: test.oldPrice,
-      newPrice: test.newPrice,
-      description: test.description,
-    });
-    setEditingTestIndex(index);
-  };
-
-  const removeTest = (index: number) => {
-    setTests(tests.filter((_, i) => i !== index));
-    if (editingTestIndex === index) {
-      setEditingTestIndex(null);
-      testForm.reset();
+  const getLevelLabel = (level: string) => {
+    switch (level) {
+      case 'basic': return '1. Basic';
+      case 'advance': return '2. Advance';
+      case 'essential': return '3. Essential';
+      case 'master': return '4. Master';
+      default: return level;
     }
   };
 
   return (
     <div className="min-h-screen py-12 px-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold text-blue-600 mb-4">
-              {editingCategoryId ? "Edit Test Category" : "Add Test Category"}
+              {editingId ? "Edit Test Package" : "Add Test Package"}
             </h2>
             <div className="w-24 h-1 bg-blue-600 mx-auto rounded-full"></div>
           </div>
 
-          {/* Category Form */}
           <div className="grid lg:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div className="bg-blue-50 rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-blue-800 mb-4">Category Details</h3>
-                <Form {...categoryForm}>
-                  <form
-                    onSubmit={categoryForm.handleSubmit(onCategorySubmit)}
-                    className="space-y-4"
-                  >
+            {/* Form */}
+            <div className="bg-blue-50 rounded-xl p-6">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-blue-700">Package Name</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="e.g., Fever Panel" 
+                            {...field}
+                            className="bg-white/70 border-blue-200 focus:border-blue-400"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
                     <FormField
-                      control={categoryForm.control}
-                      name="categoryName"
+                      control={form.control}
+                      name="type"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-blue-700">Category Name</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="e.g., Diabetes Tests" 
-                              {...field}
-                              className="bg-white/70 border-blue-200 focus:border-blue-400"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={categoryForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-blue-700">Category Description</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Describe this test category..."
-                              {...field}
-                              className="bg-white/70 border-blue-200 focus:border-blue-400 min-h-[100px]"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </form>
-                </Form>
-              </div>
-
-              {/* Test Form */}
-              <div className="bg-blue-50 rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-blue-800 mb-4">Add Test</h3>
-                <Form {...testForm}>
-                  <form
-                    onSubmit={testForm.handleSubmit(onTestSubmit)}
-                    className="space-y-4"
-                  >
-                    <FormField
-                      control={testForm.control}
-                      name="testName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-blue-700">Test Name</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="e.g., Fasting Blood Sugar" 
-                              {...field}
-                              className="bg-white/70 border-blue-200 focus:border-blue-400"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={testForm.control}
-                        name="oldPrice"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-blue-700">Old Price (₹)</FormLabel>
+                          <FormLabel className="text-blue-700">Type</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <Input 
-                                type="number" 
-                                placeholder="Enter old price" 
-                                {...field}
-                                className="bg-white/70 border-blue-200 focus:border-blue-400"
-                              />
+                              <SelectTrigger className="bg-white/70 border-blue-200 focus:border-blue-400">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={testForm.control}
-                        name="newPrice"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-blue-700">New Price (₹)</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="number" 
-                                placeholder="Enter new price" 
-                                {...field}
-                                className="bg-white/70 border-blue-200 focus:border-blue-400"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={testForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-blue-700">Test Description</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Describe this test..."
-                              {...field}
-                              className="bg-white/70 border-blue-200 focus:border-blue-400 min-h-[100px]"
-                            />
-                          </FormControl>
+                            <SelectContent>
+                              <SelectItem value="fever">Fever Panel</SelectItem>
+                              <SelectItem value="health">Health Checkup</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      {editingTestIndex !== null ? "Update Test" : "Add Test"}
-                    </Button>
-                  </form>
-                </Form>
-              </div>
-            </div>
+                    <FormField
+                      control={form.control}
+                      name="level"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-blue-700">Level</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="bg-white/70 border-blue-200 focus:border-blue-400">
+                                <SelectValue placeholder="Select level" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="basic">1. Basic</SelectItem>
+                              <SelectItem value="advance">2. Advance</SelectItem>
+                              <SelectItem value="essential">3. Essential</SelectItem>
+                              <SelectItem value="master">4. Master</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-            {/* Right Side - Lists */}
-            <div className="space-y-6">
-              {/* List of Added Tests */}
-              {tests.length > 0 && (
-                <div className="bg-blue-50 rounded-xl p-6">
-                  <h3 className="text-xl font-semibold text-blue-800 mb-4">Tests in this Category</h3>
-                  <div className="space-y-4">
-                    {tests.map((test, index) => (
-                      <div
-                        key={index}
-                        className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="space-y-2">
-                            <h4 className="font-medium text-lg text-blue-900">{test.testName}</h4>
-                            <p className="text-sm text-gray-600">{test.description}</p>
-                            <div className="flex items-center gap-3">
-                              <span className="text-gray-500 line-through">₹{test.oldPrice}</span>
-                              <span className="text-green-600 font-semibold text-lg">₹{test.newPrice}</span>
-                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                {Math.round(((parseInt(test.oldPrice) - parseInt(test.newPrice)) / parseInt(test.oldPrice)) * 100)}% off
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-blue-700">Price (₹)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="Enter price" 
+                            {...field}
+                            className="bg-white/70 border-blue-200 focus:border-blue-400"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="space-y-2">
+                    <FormLabel className="text-blue-700">Tests Included</FormLabel>
+                    <div className="space-y-3">
+                      {testInputs.map((test, index) => (
+                        <div key={index} className="flex gap-2">
+                          <Input
+                            value={test}
+                            onChange={(e) => handleTestChange(index, e.target.value)}
+                            placeholder={`Test ${index + 1}`}
+                            className="bg-white/70 border-blue-200 focus:border-blue-400"
+                          />
+                          {index > 0 && (
                             <Button
+                              type="button"
                               variant="outline"
                               size="icon"
-                              onClick={() => editTest(index)}
-                              className="hover:bg-blue-50"
+                              onClick={() => removeTestInput(index)}
+                              className="hover:bg-red-50"
                             >
-                              <Pencil className="h-4 w-4" />
+                              <X className="h-4 w-4 text-red-500" />
                             </Button>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              onClick={() => removeTest(index)}
-                              className="hover:bg-red-600"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Save Category Button */}
-                  <Button
-                    className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={categoryForm.handleSubmit(onCategorySubmit)}
-                  >
-                    {editingCategoryId ? "Update Category" : "Save Category"}
-                  </Button>
-                </div>
-              )}
-
-              {/* List of Existing Categories */}
-              {categories && categories.length > 0 && (
-                <div className="bg-blue-50 rounded-xl p-6">
-                  <h3 className="text-xl font-semibold text-blue-800 mb-4">Existing Categories</h3>
-                  <div className="space-y-4">
-                    {categories.map((category) => {
-                      const categoryTests = testItems?.filter(test => test.categoryId === category.id) || [];
-                      return (
-                        <div
-                          key={category.id}
-                          className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex justify-between items-start mb-4">
-                            <div>
-                              <h4 className="font-medium text-lg text-blue-900">{category.name}</h4>
-                              <p className="text-sm text-gray-600">{category.description}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => editCategory(category)}
-                                className="hover:bg-blue-50"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => deleteCategory(category.id)}
-                                className="hover:bg-red-600"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          {categoryTests.length > 0 && (
-                            <div className="mt-4 space-y-3">
-                              {categoryTests.map((test, index) => (
-                                <div
-                                  key={index}
-                                  className="pl-4 border-l-2 border-blue-200 hover:border-blue-400 transition-colors"
-                                >
-                                  <p className="font-medium text-blue-900">{test.testName}</p>
-                                  <p className="text-sm text-gray-600">{test.description}</p>
-                                  <div className="flex items-center gap-3 mt-1">
-                                    <span className="text-gray-500 line-through">₹{test.oldPrice}</span>
-                                    <span className="text-green-600 font-semibold">₹{test.newPrice}</span>
-                                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                      {Math.round(((parseInt(test.oldPrice) - parseInt(test.newPrice)) / parseInt(test.oldPrice)) * 100)}% off
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
                           )}
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addTestInput}
+                      className="w-full mt-2 border-blue-200 hover:bg-blue-50"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Another Test
+                    </Button>
+                    {form.formState.errors.tests && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {form.formState.errors.tests.message}
+                      </p>
+                    )}
                   </div>
+
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {editingId ? "Update Package" : "Add Package"}
+                  </Button>
+                </form>
+              </Form>
+            </div>
+
+            {/* Packages List */}
+            <div className="space-y-6">
+              {/* Fever Panels */}
+              <div className="bg-blue-50 rounded-xl p-6">
+                <h3 className="text-xl font-semibold text-blue-800 mb-4">Fever Panels</h3>
+                <div className="space-y-4">
+                  {packages?.filter(p => p.type === 'fever').map((pkg) => (
+                    <div
+                      key={pkg.id}
+                      className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-lg text-blue-900">
+                            {getLevelLabel(pkg.level)} {pkg.name}
+                          </h4>
+                          <div className="space-y-1">
+                            {pkg.tests.map((test, index) => (
+                              <p key={index} className="text-sm text-gray-600">• {test}</p>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold text-blue-600">₹{pkg.price}/-</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => editPackage(pkg)}
+                            className="hover:bg-blue-50"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => pkg.id && deletePackage(pkg.id)}
+                            className="hover:bg-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              {/* Health Checkups */}
+              <div className="bg-blue-50 rounded-xl p-6">
+                <h3 className="text-xl font-semibold text-blue-800 mb-4">Health Checkups</h3>
+                <div className="space-y-4">
+                  {packages?.filter(p => p.type === 'health').map((pkg) => (
+                    <div
+                      key={pkg.id}
+                      className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-lg text-blue-900">
+                            {getLevelLabel(pkg.level)} {pkg.name}
+                          </h4>
+                          <div className="space-y-1">
+                            {pkg.tests.map((test, index) => (
+                              <p key={index} className="text-sm text-gray-600">• {test}</p>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold text-blue-600">₹{pkg.price}/-</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => editPackage(pkg)}
+                            className="hover:bg-blue-50"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => pkg.id && deletePackage(pkg.id)}
+                            className="hover:bg-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
