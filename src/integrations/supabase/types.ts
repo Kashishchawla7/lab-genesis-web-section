@@ -92,6 +92,75 @@ export type Database = {
         }
         Relationships: []
       }
+      package_level_mt: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      packages: {
+        Row: {
+          created_at: string
+          id: string
+          level_id: string | null
+          name: string
+          new_price: number
+          old_price: number | null
+          type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level_id?: string | null
+          name: string
+          new_price: number
+          old_price?: number | null
+          type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level_id?: string | null
+          name?: string
+          new_price?: number
+          old_price?: number | null
+          type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packages_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "package_level_mt"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packages_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "test_type_mt"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -161,92 +230,6 @@ export type Database = {
         }
         Relationships: []
       }
-      test_categories: {
-        Row: {
-          created_at: string
-          description: string
-          id: string
-          name: string
-          tests: Json
-        }
-        Insert: {
-          created_at?: string
-          description: string
-          id?: string
-          name: string
-          tests?: Json
-        }
-        Update: {
-          created_at?: string
-          description?: string
-          id?: string
-          name?: string
-          tests?: Json
-        }
-        Relationships: []
-      }
-      test_items: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          main_category_id: string
-          name: string
-          price: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          main_category_id: string
-          name: string
-          price?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          main_category_id?: string
-          name?: string
-          price?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "test_items_main_category_id_fkey"
-            columns: ["main_category_id"]
-            isOneToOne: false
-            referencedRelation: "test_main_categories"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      test_main_categories: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       test_packages: {
         Row: {
           created_at: string
@@ -308,6 +291,69 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_type_mt: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tests: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          package_id: string | null
+          type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          package_id?: string | null
+          type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          package_id?: string | null
+          type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tests_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tests_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "test_type_mt"
             referencedColumns: ["id"]
           },
         ]
