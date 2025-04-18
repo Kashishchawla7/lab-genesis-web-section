@@ -93,23 +93,35 @@ const WhyBookWithUs = () => {
       </div>
 
       <footer className="bg-[#1e3a8a] text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          
-              <h3 className="text-lg font-semibold mb-4">Contact</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="text-gray-300">Email: ahujapathlabs@gmail.com</li>
-                <li className="text-gray-300">Phone: 9355502226</li>
-                <li className="text-gray-300">WhatsApp: +91 9355502226</li>
-              </ul>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <h3 className="text-xl font-semibold">Contact Us</h3>
+            <div className="flex flex-wrap items-center justify-center md:justify-end gap-6 text-gray-300">
+              <a href="tel:+919355502226" className="flex items-center hover:text-white transition-colors">
+                <Phone className="w-5 h-5 mr-2" />
+                <span>+91 9355502226</span>
+              </a>
+              <a href="https://wa.me/919355502226" className="flex items-center hover:text-white transition-colors">
+                <svg className="w-5 h-5 mr-2 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M24 11.7c0 6.45-5.27 11.68-11.78 11.68-2.07 0-4-.53-5.7-1.45L0 24l2.13-6.27a11.57 11.57 0 0 1-1.7-6.04C.44 5.23 5.72 0 12.23 0 18.72 0 24 5.23 24 11.7M12.22 1.85c-5.46 0-9.9 4.41-9.9 9.83 0 2.15.7 4.14 1.88 5.76L2.96 21.1l3.8-1.2a9.9 9.9 0 0 0 5.46 1.62c5.46 0 9.9-4.4 9.9-9.83a9.88 9.88 0 0 0-9.9-9.83z"/>
+                </svg>
+                <span>+91 9355502226</span>
+              </a>
+              <a href="mailto:ahujapathlabs@gmail.com" className="flex items-center hover:text-white transition-colors">
+                <svg className="w-5 h-5 mr-2 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+                <span>ahujapathlabs@gmail.com</span>
+              </a>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-blue-800">
+
+          <div className="mt-4 pt-4 border-t border-blue-800">
             <p className="text-center text-gray-300 text-sm">
               Copyright © {new Date().getFullYear()} Ahuja Path Labs. All rights reserved.
             </p>
           </div>
-        {/* </div> */}
+        </div>
       </footer>
     </>
   );

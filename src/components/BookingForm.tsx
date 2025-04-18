@@ -111,7 +111,7 @@ const BookingForm = () => {
               </h1>
               <div className="flex items-center gap-2 text-xl">
                 <Phone className="h-6 w-6" />
-                <span>9944320934</span>
+                <span>+91 9355502226</span>
               </div>
             </div>
 
