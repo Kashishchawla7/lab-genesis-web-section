@@ -130,14 +130,14 @@ const RoleConfig = () => {
   };
 
   return (
-    <div className="min-h-screen pt-20 px-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-center text-blue-900 mb-8">
-          Role Configuration
-        </h1>
+    <div className="container mx-auto p-6">
+      <h1 className="text-3xl font-bold text-center text-blue-900 mb-8">
+        Role Configuration
+      </h1>
 
-        {/* Create New Role */}
-        <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+      {/* Add Role Form */}
+      <div className="mb-8">
+        <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-4">Create New Role</h2>
           <div className="flex gap-4">
             <Input
@@ -148,44 +148,55 @@ const RoleConfig = () => {
             <Button onClick={createRole}>
               <Plus className="h-4 w-4 mr-2" />
               Create Role
-            </Button>
+            </Button>image.png
           </div>
         </div>
+      </div>
 
-        {/* Roles List */}
-        <div className="space-y-8">
-          {roles?.map((role) => (
-            <div key={role.id} className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">{role.name}</h3>
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={() => deleteRole(role.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {defaultMenuItems.map((menuItem) => (
-                  <div
-                    key={menuItem.id}
-                    className="flex items-center justify-between p-2 hover:bg-gray-50 rounded"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={role.menu_items.some(item => item.id === menuItem.id)}
-                        onCheckedChange={() => toggleMenuItem(role, menuItem.id)}
-                      />
-                      <span>{menuItem.name}</span>
-                    </div>
-                    <span className="text-sm text-gray-500">{menuItem.path}</span>
+      {/* Role-Screen Matrix */}
+      <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+        <table className="min-w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="py-3 px-4 text-left font-semibold">Roles</th>
+              {defaultMenuItems.map((screen) => (
+                <th key={screen.id} className="py-3 px-4 text-center font-semibold">
+                  <div className="flex flex-col items-center">
+                    <span>{screen.name}</span>
+                    <span className="text-xs text-gray-500">{screen.path}</span>
                   </div>
+                </th>
+              ))}
+              <th className="py-3 px-4 text-center font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {roles?.map((role) => (
+              <tr key={role.id} className="border-b hover:bg-gray-50">
+                <td className="py-3 px-4 font-medium">{role.name}</td>
+                {defaultMenuItems.map((screen) => (
+                  <td key={screen.id} className="py-3 px-4 text-center">
+                    <div className="flex justify-center">
+                      <Checkbox
+                        checked={role.menu_items.some(item => item.id === screen.id)}
+                        onCheckedChange={() => toggleMenuItem(role, screen.id)}
+                      />
+                    </div>
+                  </td>
                 ))}
-              </div>
-            </div>
-          ))}
-        </div>
+                <td className="py-3 px-4 text-center">
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => deleteRole(role.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

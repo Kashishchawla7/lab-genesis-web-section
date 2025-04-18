@@ -1,4 +1,5 @@
 import TestCategories from "@/components/TestCategories";
+import WhyBookWithUs from "@/components/WhyBookWithUs";
 
 const Index = () => {
   return (
@@ -9,6 +10,7 @@ const Index = () => {
         </h1>
         <TestCategories />
       </div>
+      <WhyBookWithUs />
     </div>
   );
 };

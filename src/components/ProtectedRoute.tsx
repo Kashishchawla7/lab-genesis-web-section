@@ -17,7 +17,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     queryFn: async () => {
       if (!user) return null;
 
-      const { data: roleData, error: roleError } = await supabase
+      const { data: roleData, error: roleError } = await supabase 
         .from("roles")
         .select("name")
         .eq("id", user.id)

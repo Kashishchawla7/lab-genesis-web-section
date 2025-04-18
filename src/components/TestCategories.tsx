@@ -26,7 +26,7 @@ const TestCategories = () => {
     queryKey: ["testCategories"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("test_categories")
+        .from("test_main_categories")
         .select("*");
       
       if (error) {
@@ -45,7 +45,7 @@ const TestCategories = () => {
         }
         throw error;
       }
-      return data as TestCategory[];
+      return (data as unknown as TestCategory[]) || [];
     },
   });
 
