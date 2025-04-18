@@ -1,3 +1,4 @@
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -11,7 +12,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -25,32 +25,51 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Pencil, Trash2, Plus, X } from "lucide-react";
 
-const testSchema = z.object({
+const packageSchema = z.object({
   name: z.string().min(2, "Package name must be at least 2 characters"),
-  type: z.enum(["fever", "health"]),
-  level: z.enum(["basic", "advance", "essential", "master"]),
-  price: z.string().min(1, "Price is required"),
+  typeId: z.string().min(1, "Type is required"),
+  levelId: z.string().min(1, "Level is required"),
+  newPrice: z.string().min(1, "Price is required"),
+  oldPrice: z.string().optional(),
   tests: z.array(z.string()).min(1, "At least one test is required"),
 });
 
-interface DatabaseTestPackage {
-  id: string;
-  name: string;
-  type: "fever" | "health";
-  level: "basic" | "advance" | "essential" | "master";
-  price: number;
-  tests: string[];
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface TestPackage {
+interface PackageForm {
   id?: string;
   name: string;
-  type: "fever" | "health";
-  level: "basic" | "advance" | "essential" | "master";
-  price: string;
+  typeId: string;
+  levelId: string;
+  newPrice: string;
+  oldPrice?: string;
   tests: string[];
+}
+
+interface Package {
+  id: string;
+  name: string;
+  type_id: string;
+  level_id: string;
+  new_price: number;
+  old_price?: number;
+  tests: Test[];
+  type_name?: string;
+  level_name?: string;
+}
+
+interface Test {
+  id: string;
+  name: string;
+  package_id: string;
+}
+
+interface TestType {
+  id: string;
+  name: string;
+}
+
+interface PackageLevel {
+  id: string;
+  name: string;
 }
 
 const TestCategoryForm = () => {
@@ -58,69 +77,163 @@ const TestCategoryForm = () => {
   const [testInputs, setTestInputs] = useState<string[]>(['']);
   const { toast } = useToast();
 
-  const form = useForm<z.infer<typeof testSchema>>({
-    resolver: zodResolver(testSchema),
+  const form = useForm<z.infer<typeof packageSchema>>({
+    resolver: zodResolver(packageSchema),
     defaultValues: {
       name: "",
-      type: "fever",
-      level: "basic",
-      price: "",
+      typeId: "",
+      levelId: "",
+      newPrice: "",
+      oldPrice: "",
       tests: [''],
     },
   });
 
-  const { data: packages, refetch } = useQuery({
-    queryKey: ["testPackages"],
+  // Fetch test types
+  const { data: types } = useQuery({
+    queryKey: ["testTypes"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("test_packages")
+        .from("test_type_mt")
         .select("*")
-        .order('type')
-        .order('level');
+        .order('name');
       
       if (error) throw error;
-      return (data as DatabaseTestPackage[]).map(pkg => ({
-        id: pkg.id,
-        name: pkg.name,
-        type: pkg.type,
-        level: pkg.level,
-        price: pkg.price.toString(),
-        tests: pkg.tests
-      }));
+      return data as TestType[];
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof testSchema>) => {
+  // Fetch package levels
+  const { data: levels } = useQuery({
+    queryKey: ["packageLevels"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("package_level_mt")
+        .select("*")
+        .order('name');
+      
+      if (error) throw error;
+      return data as PackageLevel[];
+    },
+  });
+
+  // Fetch packages with type and level names
+  const { data: packages, refetch } = useQuery({
+    queryKey: ["packages"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("packages")
+        .select(`
+          *,
+          type:test_type_mt(name),
+          level:package_level_mt(name)
+        `)
+        .order('name');
+      
+      if (error) throw error;
+      
+      // Fetch tests for each package
+      const packagesWithTests = await Promise.all(
+        data.map(async (pkg) => {
+          const { data: testsData, error: testsError } = await supabase
+            .from("tests")
+            .select("*")
+            .eq("package_id", pkg.id);
+          
+          if (testsError) throw testsError;
+          
+          return {
+            ...pkg,
+            type_name: pkg.type?.name,
+            level_name: pkg.level?.name,
+            tests: testsData || []
+          };
+        })
+      );
+      
+      return packagesWithTests as Package[];
+    },
+  });
+
+  const onSubmit = async (values: z.infer<typeof packageSchema>) => {
     try {
       if (editingId) {
-        const { error } = await supabase
-          .from("test_packages")
+        // Update package
+        const { error: packageError } = await supabase
+          .from("packages")
           .update({
             name: values.name,
-            type: values.type,
-            level: values.level,
-            price: parseFloat(values.price),
-            tests: values.tests,
+            type_id: values.typeId,
+            level_id: values.levelId,
+            new_price: parseFloat(values.newPrice),
+            old_price: values.oldPrice ? parseFloat(values.oldPrice) : null,
           })
           .eq("id", editingId);
 
-        if (error) throw error;
+        if (packageError) throw packageError;
+
+        // Delete existing tests
+        const { error: deleteError } = await supabase
+          .from("tests")
+          .delete()
+          .eq("package_id", editingId);
+
+        if (deleteError) throw deleteError;
+
+        // Add new tests
+        const testsToInsert = values.tests
+          .filter(test => test.trim())
+          .map(test => ({
+            name: test,
+            package_id: editingId,
+            type_id: values.typeId
+          }));
+
+        if (testsToInsert.length > 0) {
+          const { error: testsError } = await supabase
+            .from("tests")
+            .insert(testsToInsert);
+
+          if (testsError) throw testsError;
+        }
+
         toast({
           title: "Success",
           description: "Package updated successfully",
         });
       } else {
-        const { error } = await supabase
-          .from("test_packages")
+        // Insert new package
+        const { data: packageData, error: packageError } = await supabase
+          .from("packages")
           .insert({
             name: values.name,
-            type: values.type,
-            level: values.level,
-            price: parseFloat(values.price),
-            tests: values.tests,
-          } as DatabaseTestPackage);
+            type_id: values.typeId,
+            level_id: values.levelId,
+            new_price: parseFloat(values.newPrice),
+            old_price: values.oldPrice ? parseFloat(values.oldPrice) : null,
+          })
+          .select();
 
-        if (error) throw error;
+        if (packageError) throw packageError;
+
+        // Add tests
+        const packageId = packageData[0].id;
+        const testsToInsert = values.tests
+          .filter(test => test.trim())
+          .map(test => ({
+            name: test,
+            package_id: packageId,
+            type_id: values.typeId
+          }));
+
+        if (testsToInsert.length > 0) {
+          const { error: testsError } = await supabase
+            .from("tests")
+            .insert(testsToInsert);
+
+          if (testsError) throw testsError;
+        }
+
         toast({
           title: "Success",
           description: "Package created successfully",
@@ -129,8 +242,10 @@ const TestCategoryForm = () => {
       
       form.reset();
       setEditingId(null);
+      setTestInputs(['']);
       refetch();
     } catch (error) {
+      console.error(error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -157,22 +272,23 @@ const TestCategoryForm = () => {
     form.setValue('tests', newTests);
   };
 
-  const editPackage = (pkg: TestPackage) => {
+  const editPackage = (pkg: Package) => {
     form.reset({
       name: pkg.name,
-      type: pkg.type,
-      level: pkg.level,
-      price: pkg.price,
-      tests: pkg.tests,
+      typeId: pkg.type_id,
+      levelId: pkg.level_id,
+      newPrice: pkg.new_price.toString(),
+      oldPrice: pkg.old_price ? pkg.old_price.toString() : "",
+      tests: pkg.tests.map(test => test.name),
     });
-    setTestInputs(pkg.tests);
+    setTestInputs(pkg.tests.map(test => test.name));
     setEditingId(pkg.id);
   };
 
   const deletePackage = async (id: string) => {
     try {
       const { error } = await supabase
-        .from("test_packages")
+        .from("packages")
         .delete()
         .eq("id", id);
 
@@ -191,18 +307,8 @@ const TestCategoryForm = () => {
     }
   };
 
-  const getLevelLabel = (level: string) => {
-    switch (level) {
-      case 'basic': return '1. Basic';
-      case 'advance': return '2. Advance';
-      case 'essential': return '3. Essential';
-      case 'master': return '4. Master';
-      default: return level;
-    }
-  };
-
   return (
-    <div className="min-h-screen py-12 px-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div className="py-12 px-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <div className="max-w-7xl mx-auto">
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-8">
           <div className="text-center mb-10">
@@ -238,19 +344,22 @@ const TestCategoryForm = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="type"
+                      name="typeId"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-blue-700">Type</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger className="bg-white/70 border-blue-200 focus:border-blue-400">
                                 <SelectValue placeholder="Select type" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="fever">Fever Panel</SelectItem>
-                              <SelectItem value="health">Health Checkup</SelectItem>
+                              {types?.map(type => (
+                                <SelectItem key={type.id} value={type.id}>
+                                  {type.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -260,21 +369,22 @@ const TestCategoryForm = () => {
 
                     <FormField
                       control={form.control}
-                      name="level"
+                      name="levelId"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-blue-700">Level</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger className="bg-white/70 border-blue-200 focus:border-blue-400">
                                 <SelectValue placeholder="Select level" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="basic">1. Basic</SelectItem>
-                              <SelectItem value="advance">2. Advance</SelectItem>
-                              <SelectItem value="essential">3. Essential</SelectItem>
-                              <SelectItem value="master">4. Master</SelectItem>
+                              {levels?.map(level => (
+                                <SelectItem key={level.id} value={level.id}>
+                                  {level.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -283,24 +393,45 @@ const TestCategoryForm = () => {
                     />
                   </div>
 
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-blue-700">Price (₹)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="Enter price" 
-                            {...field}
-                            className="bg-white/70 border-blue-200 focus:border-blue-400"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="newPrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-blue-700">Current Price (₹)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="Enter current price" 
+                              {...field}
+                              className="bg-white/70 border-blue-200 focus:border-blue-400"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="oldPrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-blue-700">Old Price (₹) (Optional)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="Enter old price" 
+                              {...field}
+                              className="bg-white/70 border-blue-200 focus:border-blue-400"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <div className="space-y-2">
                     <FormLabel className="text-blue-700">Tests Included</FormLabel>
@@ -355,11 +486,10 @@ const TestCategoryForm = () => {
 
             {/* Packages List */}
             <div className="space-y-6">
-              {/* Fever Panels */}
               <div className="bg-blue-50 rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-blue-800 mb-4">Fever Panels</h3>
-                <div className="space-y-4">
-                  {packages?.filter(p => p.type === 'fever').map((pkg) => (
+                <h3 className="text-xl font-semibold text-blue-800 mb-4">Saved Packages</h3>
+                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                  {packages?.map((pkg) => (
                     <div
                       key={pkg.id}
                       className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
@@ -367,15 +497,22 @@ const TestCategoryForm = () => {
                       <div className="flex justify-between items-start">
                         <div className="space-y-2">
                           <h4 className="font-medium text-lg text-blue-900">
-                            {getLevelLabel(pkg.level)} {pkg.name}
+                            {pkg.name}
                           </h4>
+                          <div className="flex flex-wrap gap-2 text-sm">
+                            {pkg.type_name && <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">{pkg.type_name}</span>}
+                            {pkg.level_name && <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full">{pkg.level_name}</span>}
+                          </div>
                           <div className="space-y-1">
                             {pkg.tests.map((test, index) => (
-                              <p key={index} className="text-sm text-gray-600">• {test}</p>
+                              <p key={index} className="text-sm text-gray-600">• {test.name}</p>
                             ))}
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-lg font-semibold text-blue-600">₹{pkg.price}/-</span>
+                            <span className="text-lg font-semibold text-blue-600">₹{pkg.new_price}</span>
+                            {pkg.old_price && (
+                              <span className="text-sm line-through text-gray-500">₹{pkg.old_price}</span>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -399,53 +536,12 @@ const TestCategoryForm = () => {
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* Health Checkups */}
-              <div className="bg-blue-50 rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-blue-800 mb-4">Health Checkups</h3>
-                <div className="space-y-4">
-                  {packages?.filter(p => p.type === 'health').map((pkg) => (
-                    <div
-                      key={pkg.id}
-                      className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-2">
-                          <h4 className="font-medium text-lg text-blue-900">
-                            {getLevelLabel(pkg.level)} {pkg.name}
-                          </h4>
-                          <div className="space-y-1">
-                            {pkg.tests.map((test, index) => (
-                              <p key={index} className="text-sm text-gray-600">• {test}</p>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg font-semibold text-blue-600">₹{pkg.price}/-</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => editPackage(pkg)}
-                            className="hover:bg-blue-50"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => pkg.id && deletePackage(pkg.id)}
-                            className="hover:bg-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
+                  
+                  {!packages?.length && (
+                    <div className="text-center py-8 text-gray-500">
+                      No packages added yet. Create your first package using the form.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -456,4 +552,4 @@ const TestCategoryForm = () => {
   );
 };
 
-export default TestCategoryForm; 
+export default TestCategoryForm;
