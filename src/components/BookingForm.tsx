@@ -86,6 +86,10 @@ const BookingForm = () => {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Add state for top 4 packages by test count
+  // const [moretestcategories, setMoretestcategories] = useState<TestCategory[]>([]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -113,7 +117,6 @@ const BookingForm = () => {
       return data as TestType[];
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    cacheTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
   });
 
   // Fetch package levels
@@ -129,7 +132,6 @@ const BookingForm = () => {
       return data as PackageLevel[];
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    cacheTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
   });
 
   const { data: categories } = useQuery({
@@ -167,11 +169,55 @@ const BookingForm = () => {
         package_level_mt: pkg.package_level_mt
       }));
       
+
+      // Set top 4 packages by test count
+      // const sortedByTestCount = [...transformedData].sort((a, b) => 
+      //   (b.tests?.length || 0) - (a.tests?.length || 0)
+      // );
+      // setMoretestcategories(categories?.slice(0, 4));
+      
       return transformedData;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    cacheTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
   });
+  
+  // Get top 4 packages by test count
+  const moretestcategories = categories 
+    ? [...categories].sort((a, b) => (b.tests?.length || 0) - (a.tests?.length || 0)).slice(0, 4)
+    : [];
+
+  // Filter packages and handle empty/undefined cases
+  let filteredPackages = categories?.filter(pkg => {
+    const { types, levels } = selectedFilters;
+    
+    // If no filters are selected, show all packages
+    if (types.length === 0 && levels.length === 0) {
+      return true;
+    }
+
+    // Check if package matches selected type filters
+    const typeMatch = types.length === 0 || types.includes(pkg.type.name);
+
+    console.log('Package:', pkg)
+    console.log('Type:', types)
+    console.log('Level:', levels)
+    // Check if package matches selected level filters
+    const levelMatch = levels.length === 0 || levels.includes(pkg.level_name);
+
+    // For debugging - log the package level data
+    console.log('Package:', pkg.name, 'Level:', pkg.level_name, 'Selected Levels:', levels);
+
+    // Return true only if both type and level conditions are met
+    return typeMatch && levelMatch;
+  });
+
+  if (filteredPackages?.length === 0 || filteredPackages === undefined) {
+    filteredPackages = categories;
+  }
+
+  // Log the available package levels for debugging
+  console.log('Available Levels:', levels?.map(level => level.name));
+  console.log('Selected Filters:', selectedFilters);
 
   const createBookingMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
@@ -255,6 +301,7 @@ const BookingForm = () => {
       };
     });
   };
+  // setFilteredPackages(categories);
 
   // Reset all filters
   const resetFilters = () => {
@@ -265,21 +312,7 @@ const BookingForm = () => {
   };
 
   // Filter packages based on selected filters
-  const filteredPackages = categories?.filter(pkg => {
-    debugger;
-    console.log(pkg);
-    const { types, levels } = selectedFilters;
-    const matchesType = types.length === 0 || (pkg.test_type_mt?.name && types.includes(pkg.test_type_mt.name));
-    const matchesLevel = levels.length === 0 || (pkg.package_level_mt?.name && levels.includes(pkg.package_level_mt.name));
-  
-    // If both filters are selected, match both
-    if (types.length > 0 && levels.length > 0) {
-      return types.includes(pkg.test_type_mt?.name || '') && levels.includes(pkg.package_level_mt?.name || '');
-    }
-  
-    // If only one filter is selected, match either
-    return matchesType && matchesLevel;
-  });
+
   
 
   console.log('Filtered packages:', filteredPackages.map(pkg => pkg.name));
@@ -316,7 +349,7 @@ const BookingForm = () => {
             {/* Package Cards */}
             <div className="relative mb-8">
               <div className="grid grid-cols-2 gap-6">
-                {filteredPackages
+                {moretestcategories
                   ?.sort((a, b) => (b.tests?.length || 0) - (a.tests?.length || 0))
                   .slice(0, 4)
                   .map((pkg) => (
