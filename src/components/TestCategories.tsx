@@ -26,7 +26,7 @@ const TestCategories = () => {
     queryKey: ["testCategories"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("test_main_categories")
+        .from("test_packages")
         .select("*");
       
       if (error) {

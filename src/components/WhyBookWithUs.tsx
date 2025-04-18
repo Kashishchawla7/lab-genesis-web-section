@@ -1,121 +1,117 @@
-import { Check, Truck, Home, BadgePercent } from "lucide-react";
-import { useState, useEffect } from "react";
+import { 
+  Microscope, 
+  Clock3, 
+  Beaker, 
+  ShieldCheck, 
+  Laptop, 
+  Phone, 
+  Building2, 
+  HeartPulse,
+  BarChart4
+} from "lucide-react";
 
 const WhyBookWithUs = () => {
-  const [currentSlide, setCurrentSlide] = useState(0);
-
   const features = [
     {
-      icon: Check,
-      title: "Quality",
-      description: "Follow Stringent Quality Control Practices",
-      bgColor: "bg-green-50",
-      iconColor: "text-green-600",
-      iconBg: "bg-green-100"
+      icon: <Microscope className="w-8 h-8 text-blue-600" />,
+      title: "Advanced Lab Equipment",
+      description: "State-of-the-art automated analyzers ensuring precise and accurate test results"
     },
     {
-      icon: Truck,
-      title: "On-Time Services",
-      description: "Sample Collection & Reports",
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-600",
-      iconBg: "bg-blue-100"
+      icon: <Laptop className="w-8 h-8 text-blue-600" />,
+      title: "Digital Reports",
+      description: "Access your test reports online anytime, anywhere through our secure patient portal"
     },
     {
-      icon: Home,
-      title: "Doorstep Sample Pickup",
-      description: "Convenient home collection service",
-      bgColor: "bg-purple-50",
-      iconColor: "text-purple-600",
-      iconBg: "bg-purple-100"
+      icon: <Phone className="w-8 h-8 text-blue-600" />,
+      title: "Mobile App Access",
+      description: "Book tests, view reports, and track your health journey through our mobile app"
     },
     {
-      icon: BadgePercent,
-      title: "Accurate Results",
-      description: "100% Accurate or Money Back Guarantee",
-      bgColor: "bg-orange-50",
-      iconColor: "text-orange-600",
-      iconBg: "bg-orange-100"
+      icon: <Clock3 className="w-8 h-8 text-blue-600" />,
+      title: "Quick Turnaround Time",
+      description: "Advanced automation enabling faster processing and reporting of test results"
+    },
+    {
+      icon: <Building2 className="w-8 h-8 text-blue-600" />,
+      title: "Modern Facilities",
+      description: "Temperature-controlled labs with uninterrupted power supply for sample integrity"
+    },
+    {
+      icon: <BarChart4 className="w-8 h-8 text-blue-600" />,
+      title: "Trend Analysis",
+      description: "Track your health parameters over time with our intelligent analytics"
     }
   ];
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % features.length);
-    }, 3000);
-
-    return () => clearInterval(timer);
-  }, []);
-
   return (
-    <div className="py-16 bg-gradient-to-b from-white to-gray-50">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-[#004236] mb-4">Why Book Tests With us?</h2>
-          <div className="w-24 h-1 bg-[#004236] mx-auto rounded-full mb-6"></div>
-        </div>
-
-        <div className="relative overflow-hidden">
-          <div 
-            className="flex transition-transform duration-500 ease-in-out"
-            style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-          >
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <div 
-                  key={index}
-                  className="w-full flex-shrink-0 px-4"
-                >
-                  <div className={`${feature.bgColor} rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
-                    <div className="flex flex-col items-center text-center">
-                      <div className={`w-16 h-16 ${feature.iconBg} rounded-full flex items-center justify-center mb-6 transform transition-transform duration-300 hover:scale-110`}>
-                        <Icon className={`w-8 h-8 ${feature.iconColor}`} />
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-800 mb-4">{feature.title}</h3>
-                      <p className="text-gray-600 text-lg">{feature.description}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+    <>
+      <div className="py-16 bg-gradient-to-br from-blue-50 via-white to-blue-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-blue-900 mb-4">
+              Why Choose Our Lab?
+            </h2>
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              Experience the perfect blend of advanced technology and expert care. Our state-of-the-art facilities
+              ensure accurate results and a seamless diagnostic experience.
+            </p>
           </div>
 
-          {/* Carousel Navigation */}
-          <div className="flex justify-center mt-8 gap-3">
-            {features.map((_, index) => (
-              <button
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((feature, index) => (
+              <div
                 key={index}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  currentSlide === index 
-                    ? 'bg-[#004236] w-6' 
-                    : 'bg-gray-300 hover:bg-gray-400'
-                }`}
-                onClick={() => setCurrentSlide(index)}
-              />
+                className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-blue-100 hover:border-blue-200 hover:-translate-y-1"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0 bg-blue-50 p-3 rounded-lg">
+                    {feature.icon}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-blue-900 mb-2">
+                      {feature.title}
+                    </h3>
+                    <p className="text-gray-600">
+                      {feature.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
 
-          {/* Arrow Navigation */}
-          <button
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 rounded-full p-2 shadow-lg hover:bg-white transition-all"
-            onClick={() => setCurrentSlide((prev) => (prev - 1 + features.length) % features.length)}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 rounded-full p-2 shadow-lg hover:bg-white transition-all"
-            onClick={() => setCurrentSlide((prev) => (prev + 1) % features.length)}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          <div className="mt-12 text-center">
+            <div className="inline-flex items-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <HeartPulse className="w-6 h-6 text-blue-600 mr-2" />
+              <p className="text-blue-800 font-medium">
+                Experience the future of diagnostics. Book your test today!
+              </p>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      <footer className="bg-[#1e3a8a] text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          
+              <h3 className="text-lg font-semibold mb-4">Contact</h3>
+              <ul className="space-y-2 text-sm">
+                <li className="text-gray-300">Email: ahujapathlabs@gmail.com</li>
+                <li className="text-gray-300">Phone: 9355502226</li>
+                <li className="text-gray-300">WhatsApp: +91 9355502226</li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-8 pt-8 border-t border-blue-800">
+            <p className="text-center text-gray-300 text-sm">
+              Copyright © {new Date().getFullYear()} Ahuja Path Labs. All rights reserved.
+            </p>
+          </div>
+        {/* </div> */}
+      </footer>
+    </>
   );
 };
 
