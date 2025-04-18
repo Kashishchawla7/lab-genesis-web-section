@@ -2,12 +2,13 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { z } from "zod"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -70,6 +71,7 @@ const formSchema = z.object({
 });
 
 const BookingForm = () => {
+  const { toast } = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -83,26 +85,82 @@ const BookingForm = () => {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
-  }
-  const { data: categories, isLoading, error } = useQuery({
-    queryKey: ["testCategories"],
+  const { data: categories } = useQuery({
+    queryKey: ["testPackages"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("test_main_categories")
+        .from("test_packages")
         .select("*");
       
+      if (error) {
+        throw error;
+      }
       
-      return (data as unknown as TestCategory[]) || [];
+      return data || [];
     },
   });
+
+  const createBookingMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      const { data: bookingData, error: bookingError } = await supabase
+        .from("bookings")
+        .insert({
+          user_id: user.id,
+          test_package_id: values.testPackage,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (bookingError) {
+        throw bookingError;
+      }
+
+      const { error: notificationError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: user.id,
+          title: "New Test Booking",
+          message: `New booking for test package: ${values.testPackage}`,
+          related_booking_id: bookingData.id
+        });
+
+      if (notificationError) {
+        throw notificationError;
+      }
+
+      return bookingData;
+    },
+    onSuccess: (booking) => {
+      toast({
+        title: "Booking Successful",
+        description: "Your test booking has been created. An admin will review it shortly.",
+      });
+      form.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "Booking Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
+      });
+    }
+  });
+
+  function onSubmit(values: z.infer<typeof formSchema>) {
+    createBookingMutation.mutate(values);
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-blue-50">
       <div className="container mx-auto px-4 py-8 relative z-20">
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Left side - Test Packages */}
           <div className="lg:w-1/2 space-y-6">
             <div className="bg-gradient-to-r from-[#004236] to-[#006236] text-white p-8 rounded-2xl shadow-xl backdrop-blur-sm">
               <h1 className="text-3xl font-bold mb-4">
@@ -154,7 +212,6 @@ const BookingForm = () => {
             </div>
           </div>
 
-          {/* Right side - Booking Form */}
           <div className="lg:w-1/2">
             <div className="bg-white/80 backdrop-blur-md p-8 rounded-2xl shadow-xl">
               <h2 className="text-2xl font-bold text-center text-[#004236] mb-4">Book Your Test Now</h2>
@@ -441,7 +498,13 @@ const BookingForm = () => {
                     )}
                   />
 
-                  <Button type="submit" className="w-full">Book</Button>
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={createBookingMutation.isPending}
+                  >
+                    {createBookingMutation.isPending ? "Booking..." : "Book Test"}
+                  </Button>
                 </form>
               </Form>
             </div>
