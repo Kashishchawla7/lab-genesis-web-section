@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,9 +11,9 @@ import Book from "./pages/Book";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Navigation from "@/components/Navigation";
-import TestCategoryForm from "@/components/TestCategoryForm";
 import RoleConfig from "@/pages/RoleConfig";
 import MasterData from "./pages/MasterData";
+import ManageTests from "./pages/ManageTests";
 
 const queryClient = new QueryClient();
 
@@ -34,7 +35,7 @@ const App = () => (
             } />
             <Route path="/manage-tests" element={
               <ProtectedRoute allowedRoles={['admin']}>
-                <TestCategoryForm />
+                <ManageTests />
               </ProtectedRoute>
             } />
             <Route path="/role-config" element={
