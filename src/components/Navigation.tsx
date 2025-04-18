@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,10 +20,6 @@ interface Role {
   menu_items: MenuItem[];
 }
 
-interface UserRole {
-  role_id: string;
-}
-
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
   calendar: Calendar,
@@ -35,42 +32,54 @@ const Navigation = () => {
   const { user, signOut } = useAuth();
   const location = useLocation();
 
-  console.log(user);
-  const { data: role } = useQuery({
+  // Default menu items if no role is found
+  const defaultMenuItems: MenuItem[] = [
+    { id: 'home', name: 'Home', path: '/', icon: 'home' },
+    { id: 'book', name: 'Book Test', path: '/book', icon: 'calendar' },
+  ];
+
+  const { data: role, isLoading } = useQuery({
     queryKey: ["userRole", user?.id],
-    
     queryFn: async () => {
       if (!user) return null;
       
-      const { data, error } = await supabase
+      // First, get the user's role
+      const { data: roleData, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .single<{ role_id: string }>();
-
-      if (error || !data) throw error || new Error("No role found");
-      console.log(data);
-
-      const { data: roleData, error: roleError } = await supabase
-        .from("roles")
-        .select("id, name, menu_items")
-        .eq("name", data.role)
         .single();
 
-      if (roleError) throw roleError;
+      if (error || !roleData) {
+        console.error("Error fetching user role:", error);
+        return null;
+      }
+
+      // Then, fetch the role details with menu items
+      const { data: roleDetails, error: roleError } = await supabase
+        .from("roles")
+        .select("id, name, menu_items")
+        .eq("name", roleData.role)
+        .single();
+
+      if (roleError) {
+        console.error("Error fetching role details:", roleError);
+        return null;
+      }
+
       return {
-        ...roleData,
-        menu_items: typeof roleData.menu_items === 'string' 
-          ? JSON.parse(roleData.menu_items) 
-          : roleData.menu_items
+        ...roleDetails,
+        menu_items: typeof roleDetails.menu_items === 'string' 
+          ? JSON.parse(roleDetails.menu_items) 
+          : roleDetails.menu_items
       } as Role;
     },
     enabled: !!user,
+    // Use default menu items if no role is found
+    placeholderData: { menu_items: defaultMenuItems } as Role
   });
 
-  const menuItems = role?.menu_items || [];
-  console.log(menuItems);
-  console.log(role);
+  const menuItems = role?.menu_items || defaultMenuItems;
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-lg z-50">
@@ -145,7 +154,7 @@ const Navigation = () => {
         </div>
       </div>
       <div className="md:hidden">
-        {/* Add mobile menu implementation if needed */}
+        {/* TODO: Add mobile menu implementation */}
       </div>
     </nav>
   );
