@@ -183,7 +183,7 @@ const BookingForm = () => {
   
   // Get top 4 packages by test count
   const moretestcategories = categories 
-    ? [...categories].sort((a, b) => (b.tests?.length || 0) - (a.tests?.length || 0)).slice(0, 4)
+    ? [...categories].slice(0, 4)
     : [];
 
   // Filter packages and handle empty/undefined cases
@@ -342,7 +342,7 @@ const BookingForm = () => {
               </h1>
               <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mt-4">
                 <Phone className="h-6 w-6" />
-                <span className="text-2xl font-semibold">9944320934</span>
+                <span className="text-2xl font-semibold">9355502226</span>
               </div>
             </div>
 
@@ -350,8 +350,7 @@ const BookingForm = () => {
             <div className="relative mb-8">
               <div className="grid grid-cols-2 gap-6">
                 {moretestcategories
-                  ?.sort((a, b) => (b.tests?.length || 0) - (a.tests?.length || 0))
-                  .slice(0, 4)
+                  ?.slice(0, 4)
                   .map((pkg) => (
                   <div
                     key={pkg.id}
@@ -364,9 +363,6 @@ const BookingForm = () => {
                     <div className="bg-gradient-to-r from-[#004236] to-[#006236] text-white p-4">
                       <h3 className="text-xl font-bold mb-1">{pkg.name}</h3>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm bg-white/20 px-2 py-0.5 rounded">
-                          {pkg.tests?.length || 0} Tests
-                        </span>
                         <span className="text-sm bg-white/20 px-2 py-0.5 rounded">
                           {pkg.test_type_mt?.name}
                         </span>
@@ -720,9 +716,6 @@ const BookingForm = () => {
                           <h3 className="font-semibold text-xl text-[#004236] group-hover:text-blue-600 transition-colors">
                             {pkg.name}
                           </h3>
-                          <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">
-                            {pkg.tests?.length || 0} Tests
-                          </span>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {pkg.test_type_mt?.name && (

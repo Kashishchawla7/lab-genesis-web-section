@@ -121,9 +121,6 @@ const TestCategories = () => {
                     <h3 className="font-semibold text-xl text-[#004236] group-hover:text-blue-600 transition-colors">
                       {pkg.name}
                     </h3>
-                    <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">
-                      {pkg.tests?.length || 0} Tests
-                    </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {pkg.type_name && (
