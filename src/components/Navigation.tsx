@@ -1,4 +1,3 @@
-
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -88,11 +87,11 @@ const Navigation = () => {
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <Link to="/" className="flex items-center">
-                <img src={logo} alt="Ahuja Lab" className="w-[70px] h-[70px] object-contain" />
-                <div className="hidden md:flex flex-col ml-2">
-                  <span className="text-xl font-bold text-blue-600">Ahuja Lab</span>
+                <img src={logo} alt="Ahuja Path Labs" className="w-[137px] h-[123px] object-contain" />
+                {/* <div className="hidden md:flex flex-col ml-2">
+                  <span className="text-xl font-bold text-blue-600">Ahuja Path Labs</span>
                   <span className="text-sm text-gray-600">Your Health Is Our Priority</span>
-                </div>
+                </div> */}
               </Link>
             </div>
           </div>

@@ -59,7 +59,7 @@ const Auth = () => {
   return (
     <div className="min-h-screen pt-20 px-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <div className="max-w-md mx-auto space-y-6 bg-white p-6 rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center text-gray-900">Welcome to Ahuja Lab</h1>
+        <h1 className="text-2xl font-bold text-center text-gray-900">Welcome to Ahuja Path Labs</h1>
         <div className="space-y-4">
           <Input
             type="email"

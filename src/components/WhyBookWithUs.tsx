@@ -20,12 +20,12 @@ const WhyBookWithUs = () => {
     {
       icon: <Laptop className="w-8 h-8 text-blue-600" />,
       title: "Digital Reports",
-      description: "Access your test reports online anytime, anywhere through our secure patient portal"
+      description: "Access your test reports through our secure QR code"
     },
     {
       icon: <Phone className="w-8 h-8 text-blue-600" />,
-      title: "Mobile App Access",
-      description: "Book tests, view reports, and track your health journey through our mobile app"
+      title: "ISO Certified",
+      description: "We are ISO certified, ensuring the highest standards of quality and safety"
     },
     {
       icon: <Clock3 className="w-8 h-8 text-blue-600" />,

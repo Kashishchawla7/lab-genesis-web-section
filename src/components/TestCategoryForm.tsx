@@ -160,44 +160,18 @@ const TestCategoryForm = () => {
       console.log("Submitting form values:", values);
       
       if (editingId) {
-        // Update package
-        const { error: packageError } = await supabase
-          .from("packages")
-          .update({
-            name: values.name,
-            type_id: values.typeId,
-            level_id: values.levelId,
-            new_price: parseFloat(values.newPrice),
-            old_price: values.oldPrice ? parseFloat(values.oldPrice) : null,
-          })
-          .eq("id", editingId);
+        // Start a transaction to ensure atomic operations
+        const { error: transactionError } = await supabase.rpc('update_package', {
+          p_package_id: editingId,
+          p_name: values.name,
+          p_type_id: values.typeId,
+          p_level_id: values.levelId,
+          p_new_price: parseFloat(values.newPrice),
+          p_old_price: values.oldPrice ? parseFloat(values.oldPrice) : null,
+          p_tests: values.tests.filter(test => test.trim())
+        });
 
-        if (packageError) throw packageError;
-
-        // Delete existing tests
-        const { error: deleteError } = await supabase
-          .from("tests")
-          .delete()
-          .eq("package_id", editingId);
-
-        if (deleteError) throw deleteError;
-
-        // Add new tests
-        const testsToInsert = values.tests
-          .filter(test => test.trim())
-          .map(test => ({
-            name: test,
-            package_id: editingId
-            // type_id: values.typeId
-          }));
-
-        if (testsToInsert.length > 0) {
-          const { error: testsError } = await supabase
-            .from("tests")
-            .insert(testsToInsert);
-
-          if (testsError) throw testsError;
-        }
+        if (transactionError) throw transactionError;
 
         toast({
           title: "Success",
@@ -218,8 +192,6 @@ const TestCategoryForm = () => {
 
         if (packageError) throw packageError;
 
-        console.log("Package created:", packageData);
-
         // Add tests
         const packageId = packageData[0].id;
         const testsToInsert = values.tests
@@ -227,19 +199,14 @@ const TestCategoryForm = () => {
           .map(test => ({
             name: test,
             package_id: packageId
-            // type_id: values.typeId
           }));
 
-        console.log("Tests to insert:", testsToInsert);
-
         if (testsToInsert.length > 0) {
-          const { data: testsData, error: testsError } = await supabase
+          const { error: testsError } = await supabase
             .from("tests")
-            .insert(testsToInsert)
-            .select();
+            .insert(testsToInsert);
 
           if (testsError) throw testsError;
-          console.log("Tests created:", testsData);
         }
 
         toast({
