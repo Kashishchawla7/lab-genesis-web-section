@@ -1,3 +1,4 @@
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useState, useRef } from "react";
@@ -234,6 +235,8 @@ const BookingForm = () => {
         throw new Error("Please sign in to make a booking");
       }
 
+      console.log("Creating booking with values:", values);
+      
       // Create the booking
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
@@ -241,7 +244,7 @@ const BookingForm = () => {
           user_id: user.id,
           test_package_id: values.testPackage,
           status: 'pending',
-          appointment_date: values.appointmentDate.toISOString(),
+          appointment_date: values.appointmentDate,
           appointment_time: values.timeSlot,
           name: values.name,
           email: values.email,
@@ -249,7 +252,7 @@ const BookingForm = () => {
           age: parseInt(values.age, 10),
           gender: values.gender,
           address: values.address,
-          pincode: values.pincode, // Using pin code from the form
+          pincode: values.pincode,
           printed_report: values.printedReport,
           contact_preferences: values.contactPreferences
         })
@@ -257,8 +260,15 @@ const BookingForm = () => {
         .single();
 
       if (bookingError) {
+        console.error("Booking error:", bookingError);
         throw bookingError;
       }
+
+      if (!bookingData) {
+        throw new Error("No booking data returned");
+      }
+
+      console.log("Booking created successfully:", bookingData);
 
       // Create notification for the admin
       const { error: notificationError } = await supabase
@@ -266,12 +276,13 @@ const BookingForm = () => {
         .insert({
           user_id: user.id,
           booking_id: bookingData.id,
-          message: `New test booking for package: ${values.testPackage}`,
+          message: `New test booking for ${values.name}: ${values.testPackage}`,
           status: 'pending',
           admin_action: 'pending'
         });
 
       if (notificationError) {
+        console.error("Notification error:", notificationError);
         throw notificationError;
       }
 
@@ -285,6 +296,7 @@ const BookingForm = () => {
       form.reset();
     },
     onError: (error) => {
+      console.error("Mutation error:", error);
       toast({
         title: "Booking Failed",
         description: error instanceof Error ? error.message : "An unknown error occurred",
@@ -294,6 +306,7 @@ const BookingForm = () => {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("Submitting form with values:", values);
     createBookingMutation.mutate(values);
   }
 

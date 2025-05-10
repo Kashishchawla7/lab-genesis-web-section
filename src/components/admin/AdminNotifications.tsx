@@ -1,128 +1,176 @@
-
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
-  CheckCircle,
-  XCircle,
+  Check,
+  X,
   Clock,
-  Search,
-  Filter,
   AlertCircle,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 
 interface BookingNotification {
   id: string;
-  booking_id: string;
-  user_id: string;
   message: string;
   status: string;
   admin_action: string;
-  read_by_admin: boolean;
-  read_by_user: boolean;
   created_at: string;
   updated_at: string;
+  read_by_admin: boolean;
+  booking_id: string;
+  bookings: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    appointment_date: string;
+    appointment_time: string;
+    test_package_id: string;
+  } | null;
 }
 
 const AdminNotifications = () => {
   const { toast } = useToast();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [notesMap, setNotesMap] = useState<Record<string, string>>({});
-  const [selectedNotification, setSelectedNotification] = useState<BookingNotification | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
-  // Query for booking notifications
-  const { data: notifications, refetch } = useQuery({
-    queryKey: ["admin-booking-notifications"],
+  // Use React Query to fetch notifications from the database
+  const { data: notifications, isLoading, error, refetch } = useQuery({
+    queryKey: ["admin-notifications"],
     queryFn: async () => {
+      console.log("Fetching admin notifications");
       const { data, error } = await supabase
         .from("booking_notifications")
         .select(`
-          *,
-          bookings(
-            user_id,
-            name,
+          id, 
+          message, 
+          status, 
+          admin_action, 
+          created_at, 
+          updated_at, 
+          read_by_admin,
+          booking_id,
+          bookings (
+            id, 
+            name, 
+            email, 
             phone,
-            email,
-            age,
-            gender,
-            address,
-            test_package_id,
             appointment_date,
             appointment_time,
-            test_packages(name)
+            test_package_id
           )
         `)
         .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching notifications:", error);
+        throw error;
+      }
       
-      if (error) throw error;
-      return data as (BookingNotification & { 
-        bookings: {
-          user_id: string;
-          name: string;
-          phone: string;
-          email: string;
-          age: number;
-          gender: string;
-          address: string;
-          test_package_id: string;
-          appointment_date: string;
-          appointment_time: string;
-          test_packages: { name: string };
-        } 
-      })[];
+      console.log("Admin notifications data:", data);
+      return data || [];
     },
   });
 
+  // Initialize statuses from fetched notifications
+  useEffect(() => {
+    if (notifications && notifications.length > 0) {
+      const initialStatuses: Record<string, string> = {};
+      notifications.forEach(notification => {
+        initialStatuses[notification.id] = notification.admin_action || 'pending';
+      });
+      setStatuses(initialStatuses);
+    }
+  }, [notifications]);
+
   // Set up real-time subscription for booking notifications
   useEffect(() => {
+    console.log("Setting up real-time subscription for admin notifications");
     const channel = supabase
-      .channel('admin-booking-notifications-changes')
+      .channel('admin-booking-notifications')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'booking_notifications' },
-        () => {
+        {
+          event: '*',
+          schema: 'public',
+          table: 'booking_notifications'
+        },
+        (payload) => {
+          console.log("Real-time notification update:", payload);
           refetch();
         }
       )
       .subscribe();
 
     return () => {
+      console.log("Cleaning up subscription");
       supabase.removeChannel(channel);
     };
   }, [refetch]);
 
+  // Toggle expanded row
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  // Handle status change
+  const handleStatusChange = async (notificationId: string, status: string) => {
+    try {
+      console.log(`Updating notification ${notificationId} to status ${status}`);
+      
+      setStatuses(prev => ({
+        ...prev,
+        [notificationId]: status
+      }));
+
+      const { error } = await supabase
+        .from("booking_notifications")
+        .update({
+          admin_action: status,
+          read_by_admin: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", notificationId);
+
+      if (error) {
+        console.error("Error updating notification:", error);
+        throw error;
+      }
+
+      toast({
+        title: "Status Updated",
+        description: `Notification status updated to ${status}`,
+      });
+      
+      refetch();
+    } catch (error) {
+      console.error("Error in handleStatusChange:", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+      
+      // Revert status on error
+      setStatuses(prev => {
+        const notification = notifications?.find(n => n.id === notificationId);
+        return {
+          ...prev,
+          [notificationId]: notification?.admin_action || 'pending'
+        };
+      });
+    }
+  };
+
+  // Mark as read
   const markAsRead = async (id: string) => {
     try {
       const { error } = await supabase
@@ -133,6 +181,7 @@ const AdminNotifications = () => {
       if (error) throw error;
       refetch();
     } catch (error) {
+      console.error("Error marking as read:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -141,71 +190,15 @@ const AdminNotifications = () => {
     }
   };
 
-  const updateStatus = async (id: string, booking_id: string, status: string) => {
-    try {
-      const { error } = await supabase
-        .from("booking_notifications")
-        .update({ 
-          admin_action: status,
-          read_by_admin: true, 
-          message: notesMap[id] 
-            ? `Your booking has been ${status.toLowerCase()}. Note: ${notesMap[id]}` 
-            : `Your booking has been ${status.toLowerCase()}.`
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-      
-      toast({
-        title: "Status Updated",
-        description: `Booking status has been updated to ${status}`,
-      });
-      
-      refetch();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update status",
-      });
-    }
-  };
-
-  const handleNoteChange = (id: string, note: string) => {
-    setNotesMap(prev => ({
-      ...prev,
-      [id]: note
-    }));
-  };
-
-  const filterNotifications = () => {
-    if (!notifications) return [];
-    
-    return notifications.filter(notification => {
-      // Status filter
-      if (statusFilter !== "all" && notification.admin_action.toLowerCase() !== statusFilter) {
-        return false;
-      }
-      
-      // Search filter - check booking details
-      if (searchTerm && !notification.bookings.name?.toLowerCase().includes(searchTerm.toLowerCase()) && 
-          !notification.bookings.email?.toLowerCase().includes(searchTerm.toLowerCase()) &&
-          !notification.bookings.test_packages.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
-      }
-      
-      return true;
-    });
-  };
-
+  // Get status badge
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case 'pending':
         return <Badge variant="outline" className="flex items-center gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
       case 'approved':
-        return <Badge variant="success" className="flex items-center gap-1 bg-green-100 text-green-700"><CheckCircle className="h-3 w-3" /> Approved</Badge>;
+        return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Approved</Badge>;
       case 'rejected':
-        return <Badge variant="destructive" className="flex items-center gap-1"><XCircle className="h-3 w-3" /> Rejected</Badge>;
+        return <Badge variant="destructive" className="flex items-center gap-1"><X className="h-3 w-3" /> Rejected</Badge>;
       case 'in_progress':
         return <Badge variant="secondary" className="flex items-center gap-1"><AlertCircle className="h-3 w-3" /> In Progress</Badge>;
       default:
@@ -213,244 +206,134 @@ const AdminNotifications = () => {
     }
   };
 
-  // View notification details
-  const viewNotificationDetails = (notification: BookingNotification & { 
-    bookings: {
-      user_id: string;
-      name: string;
-      phone: string;
-      email: string;
-      age: number;
-      gender: string;
-      address: string;
-      test_package_id: string;
-      appointment_date: string;
-      appointment_time: string;
-      test_packages: { name: string };
-    } 
-  }) => {
-    setSelectedNotification(notification);
-    setIsDialogOpen(true);
-  };
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-6">
+        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
-  const filteredNotifications = filterNotifications();
+  if (error) {
+    return (
+      <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <p>Error loading notifications</p>
+        <Button variant="outline" onClick={() => refetch()} className="mt-2">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative flex-grow">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            type="text"
-            placeholder="Search by name, email or test"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value)}
+    <div className="space-y-4">
+      {notifications && notifications.length > 0 ? (
+        notifications.map((notification) => (
+          <div 
+            key={notification.id} 
+            className={`p-4 border rounded-lg transition-all ${
+              notification.read_by_admin ? "bg-white" : "bg-blue-50 border-blue-200"
+            } ${expandedRows[notification.id] ? "shadow-md" : ""}`}
           >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {filteredNotifications.map((notification) => (
-          <Card
-            key={notification.id}
-            className={`${!notification.read_by_admin ? "border-l-4 border-blue-500" : ""}`}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex justify-between">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    Booking Request: {notification.bookings.test_packages.name}
-                    {!notification.read_by_admin && (
-                      <Badge variant="blue" className="bg-blue-500">New</Badge>
-                    )}
-                  </CardTitle>
-                  <CardDescription>
-                    {notification.bookings.name} • {notification.bookings.email} • {notification.bookings.phone}
-                  </CardDescription>
-                </div>
-                {getStatusBadge(notification.admin_action)}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-sm text-gray-500">Appointment</p>
-                  <p>
-                    {new Date(notification.bookings.appointment_date).toLocaleDateString()} • {notification.bookings.appointment_time}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">User Details</p>
-                  <p>
-                    {notification.bookings.age} years • {notification.bookings.gender}
-                  </p>
-                </div>
-              </div>
-              
-              <Textarea
-                placeholder="Add notes for the user (optional)"
-                value={notesMap[notification.id] || ""}
-                onChange={(e) => handleNoteChange(notification.id, e.target.value)}
-                className="mb-4"
-              />
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => viewNotificationDetails(notification)}
-                >
-                  View Details
-                </Button>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
                 {!notification.read_by_admin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => markAsRead(notification.id)}
-                  >
-                    Mark as Read
-                  </Button>
+                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                 )}
-              </div>
-              
-              <div className="flex gap-2">
-                <Button
-                  variant="success"
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => updateStatus(notification.id, notification.booking_id, "approved")}
-                  disabled={notification.admin_action.toLowerCase() === "approved"}
-                >
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  Approve
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => updateStatus(notification.id, notification.booking_id, "rejected")}
-                  disabled={notification.admin_action.toLowerCase() === "rejected"}
-                >
-                  <XCircle className="h-4 w-4 mr-1" />
-                  Reject
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => updateStatus(notification.id, notification.booking_id, "in_progress")}
-                  disabled={notification.admin_action.toLowerCase() === "in_progress"}
-                >
-                  <Clock className="h-4 w-4 mr-1" />
-                  In Progress
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
-        ))}
-
-        {filteredNotifications.length === 0 && (
-          <div className="text-center p-8 bg-white rounded-lg shadow-sm">
-            <Bell className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-500">No notifications found</p>
-          </div>
-        )}
-      </div>
-
-      {/* Notification Details Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Booking Details</DialogTitle>
-            <DialogDescription>
-              View complete information about this test booking
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedNotification && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-medium mb-2">Patient Information</h3>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Name:</span>
-                    <span className="col-span-2">{selectedNotification.bookings.name}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Email:</span>
-                    <span className="col-span-2">{selectedNotification.bookings.email}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Phone:</span>
-                    <span className="col-span-2">{selectedNotification.bookings.phone}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Age:</span>
-                    <span className="col-span-2">{selectedNotification.bookings.age} years</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Gender:</span>
-                    <span className="col-span-2">{selectedNotification.bookings.gender}</span>
-                  </div>
+                <div>
+                  <h3 className="font-medium">
+                    {notification.bookings?.name || 'Unknown User'}
+                  </h3>
+                  <p className="text-sm text-gray-600">{notification.message}</p>
                 </div>
               </div>
-              
-              <div>
-                <h3 className="font-medium mb-2">Booking Information</h3>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Test:</span>
-                    <span className="col-span-2">{selectedNotification.bookings.test_packages.name}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Date:</span>
-                    <span className="col-span-2">{new Date(selectedNotification.bookings.appointment_date).toLocaleDateString()}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Time:</span>
-                    <span className="col-span-2">{selectedNotification.bookings.appointment_time}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Status:</span>
-                    <span className="col-span-2">{getStatusBadge(selectedNotification.admin_action)}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-gray-500">Created:</span>
-                    <span className="col-span-2">{new Date(selectedNotification.created_at).toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="col-span-1 md:col-span-2">
-                <h3 className="font-medium mb-2">Address</h3>
-                <p className="text-gray-700">{selectedNotification.bookings.address}</p>
+
+              <div className="flex items-center gap-2">
+                {getStatusBadge(statuses[notification.id] || notification.admin_action || 'pending')}
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => toggleRow(notification.id)}
+                >
+                  {expandedRows[notification.id] ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
             </div>
-          )}
-          
-          <DialogFooter>
-            <Button onClick={() => setIsDialogOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            
+            {/* Expanded details */}
+            {expandedRows[notification.id] && (
+              <div className="mt-4 border-t pt-4 space-y-4">
+                {/* Booking details */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Contact</p>
+                    <p>{notification.bookings?.email}</p>
+                    <p>{notification.bookings?.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Appointment</p>
+                    <p>Date: {new Date(notification.bookings?.appointment_date).toLocaleDateString()}</p>
+                    <p>Time: {notification.bookings?.appointment_time}</p>
+                  </div>
+                </div>
+                
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-green-600 border-green-200 hover:bg-green-50"
+                    onClick={() => handleStatusChange(notification.id, 'approved')}
+                  >
+                    <CheckCircle className="mr-1 h-3 w-3" />
+                    Approve
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => handleStatusChange(notification.id, 'rejected')}
+                  >
+                    <X className="mr-1 h-3 w-3" />
+                    Reject
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                    onClick={() => handleStatusChange(notification.id, 'in_progress')}
+                  >
+                    <Clock className="mr-1 h-3 w-3" />
+                    In Progress
+                  </Button>
+                  {!notification.read_by_admin && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => markAsRead(notification.id)}
+                    >
+                      Mark as read
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <div className="mt-2 text-xs text-gray-500">
+              {new Date(notification.created_at).toLocaleString()}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="py-12 text-center">
+          <Bell className="h-12 w-12 text-gray-300 mx-auto" />
+          <p className="mt-2 text-gray-500">No notifications yet</p>
+        </div>
+      )}
     </div>
   );
 };
