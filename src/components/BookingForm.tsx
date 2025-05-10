@@ -1,4 +1,3 @@
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useState, useRef } from "react";
@@ -6,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Phone } from "lucide-react";
+import { Calendar as CalendarIcon, Phone, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/components/ui/use-toast";
@@ -78,7 +77,7 @@ const formSchema = z.object({
   gender: z.string({ required_error: "Please select your gender." }),
   address: z.string().min(25, { message: "Address must be at least 25 characters." }),
   testPackage: z.string({ required_error: "Please select a test package." }),
-  pincode: z.string().min(6, { message: "Please enter a valid pin code." }),
+  // pincode: z.string().min(6, { message: "Please enter a valid pin code." }),
   iAuthorize: z.boolean().refine((value) => value === true, {
     message: 'Please authorize us to contact you.',
   }),
@@ -204,16 +203,16 @@ const BookingForm = () => {
     }
 
     // Check if package matches selected type filters
-    const typeMatch = types.length === 0 || types.includes(pkg.type.name);
+    const typeMatch = types.length === 0 || types.includes(pkg.test_type_mt.name);
 
     console.log('Package:', pkg)
     console.log('Type:', types)
     console.log('Level:', levels)
     // Check if package matches selected level filters
-    const levelMatch = levels.length === 0 || levels.includes(pkg.level_name);
+    const levelMatch = levels.length === 0 || levels.includes(pkg.package_level_mt.name);
 
     // For debugging - log the package level data
-    console.log('Package:', pkg.name, 'Level:', pkg.level_name, 'Selected Levels:', levels);
+    console.log('Package:', pkg.name, 'Level:', pkg.package_level_mt.name, 'Selected Levels:', levels);
 
     // Return true only if both type and level conditions are met
     return typeMatch && levelMatch;
@@ -244,8 +243,8 @@ const BookingForm = () => {
           user_id: user.id,
           test_package_id: values.testPackage,
           status: 'pending',
-          appointment_date: values.appointmentDate,
-          appointment_time: values.timeSlot,
+          appointment_date: new Date().toISOString(),
+          appointment_time: "",
           name: values.name,
           email: values.email,
           phone: values.phone,
@@ -253,8 +252,8 @@ const BookingForm = () => {
           gender: values.gender,
           address: values.address,
           pincode: values.pincode,
-          printed_report: values.printedReport,
-          contact_preferences: values.contactPreferences
+          // printed_report: values.printedReport,
+          // contact_preferences: values.contactPreferences
         })
         .select()
         .single();
@@ -477,11 +476,13 @@ const BookingForm = () => {
                               </SelectItem>
                             ))}
                           </SelectContent>
-                        </Select>
+                        {/* </Select> */}
                         <FormMessage />
                       </FormItem>
+                      
                     )}
                   />
+                  </div>
 
                   <FormField
                     control={form.control}
@@ -868,7 +869,7 @@ const BookingForm = () => {
 
 export default BookingForm;
 
-<style jsx global>{`
+<style >{`
   .no-scrollbar {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
