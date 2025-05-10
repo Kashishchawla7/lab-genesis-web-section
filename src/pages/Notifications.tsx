@@ -60,6 +60,8 @@ const Notifications = () => {
     queryFn: async () => {
       if (!user) return [];
       
+      console.log("Fetching booking notifications for user:", user.id);
+      
       const { data, error } = await supabase
         .from("booking_notifications")
         .select(`
@@ -70,13 +72,17 @@ const Notifications = () => {
           admin_action,
           read_by_user,
           created_at,
-          updated_at,
-          bookings(test_package_id, test_packages(name))
+          updated_at
         `)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching booking notifications:", error);
+        throw error;
+      }
+      
+      console.log("Fetched booking notifications:", data);
       return data as BookingNotification[];
     },
     enabled: !!user,
