@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -14,12 +15,20 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface BookingNotification {
   id: string;
   message: string;
   status: string;
   admin_action: string;
+  request_status: string; // New field for tracking request status
   created_at: string;
   updated_at: string;
   read_by_admin: boolean;
@@ -37,6 +46,7 @@ interface BookingNotification {
 const AdminNotifications = () => {
   const { toast } = useToast();
   const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const [requestStatuses, setRequestStatuses] = useState<Record<string, string>>({}); // For the new request status workflow
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   // Use React Query to fetch notifications from the database
@@ -50,7 +60,8 @@ const AdminNotifications = () => {
           id, 
           message, 
           status, 
-          admin_action, 
+          admin_action,
+          request_status, 
           created_at, 
           updated_at, 
           read_by_admin,
@@ -81,10 +92,15 @@ const AdminNotifications = () => {
   useEffect(() => {
     if (notifications && notifications.length > 0) {
       const initialStatuses: Record<string, string> = {};
+      const initialRequestStatuses: Record<string, string> = {};
+      
       notifications.forEach(notification => {
         initialStatuses[notification.id] = notification.admin_action || 'pending';
+        initialRequestStatuses[notification.id] = notification.request_status || 'pending';
       });
+      
       setStatuses(initialStatuses);
+      setRequestStatuses(initialRequestStatuses);
     }
   }, [notifications]);
 
@@ -170,6 +186,70 @@ const AdminNotifications = () => {
     }
   };
 
+  // Handle request status change (new function)
+  const handleRequestStatusChange = async (notificationId: string, status: string) => {
+    try {
+      console.log(`Updating request status for notification ${notificationId} to ${status}`);
+      
+      setRequestStatuses(prev => ({
+        ...prev,
+        [notificationId]: status
+      }));
+
+      // Update the booking notification
+      const { error } = await supabase
+        .from("booking_notifications")
+        .update({
+          request_status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", notificationId);
+
+      if (error) {
+        console.error("Error updating request status:", error);
+        throw error;
+      }
+
+      // Find the booking ID to update the booking status as well
+      const notification = notifications?.find(n => n.id === notificationId);
+      if (notification && notification.booking_id) {
+        // Update the booking status to match
+        const { error: bookingError } = await supabase
+          .from("bookings")
+          .update({ status: status })
+          .eq("id", notification.booking_id);
+          
+        if (bookingError) {
+          console.error("Error updating booking status:", bookingError);
+          throw bookingError;
+        }
+      }
+
+      toast({
+        title: "Request Status Updated",
+        description: `Request status updated to ${status}`,
+      });
+      
+      refetch();
+    } catch (error) {
+      console.error("Error in handleRequestStatusChange:", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+      
+      // Revert status on error
+      setRequestStatuses(prev => {
+        const notification = notifications?.find(n => n.id === notificationId);
+        return {
+          ...prev,
+          [notificationId]: notification?.request_status || 'pending'
+        };
+      });
+    }
+  };
+
   // Mark as read
   const markAsRead = async (id: string) => {
     try {
@@ -201,6 +281,12 @@ const AdminNotifications = () => {
         return <Badge variant="destructive" className="flex items-center gap-1"><X className="h-3 w-3" /> Rejected</Badge>;
       case 'in_progress':
         return <Badge variant="secondary" className="flex items-center gap-1"><AlertCircle className="h-3 w-3" /> In Progress</Badge>;
+      case 'sample_collected':
+        return <Badge variant="blue" className="flex items-center gap-1"><Check className="h-3 w-3" /> Sample Collected</Badge>;
+      case 'report_generated':
+        return <Badge variant="secondary" className="flex items-center gap-1"><Clock className="h-3 w-3" /> Report Generated</Badge>;
+      case 'completed':
+        return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Completed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -281,7 +367,33 @@ const AdminNotifications = () => {
                   </div>
                 </div>
                 
-                {/* Actions */}
+                {/* Request Status Selection - New Feature */}
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-sm font-medium mb-2">Request Status</p>
+                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                    <div className="w-full sm:w-1/2">
+                      <Select 
+                        value={requestStatuses[notification.id] || notification.request_status || 'pending'} 
+                        onValueChange={(value) => handleRequestStatusChange(notification.id, value)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="sample_collected">Sample Collected</SelectItem>
+                          <SelectItem value="report_generated">Report Generated</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-full sm:w-1/2 text-sm text-gray-500">
+                      Current: {getStatusBadge(requestStatuses[notification.id] || notification.request_status || 'pending')}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Standard Actions */}
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 

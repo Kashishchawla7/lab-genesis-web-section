@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +27,7 @@ interface BookingNotification {
   message: string;
   status: string;
   admin_action: string;
+  request_status: string; // Added request_status field
   read_by_user: boolean;
   created_at: string;
   updated_at: string;
@@ -70,6 +70,7 @@ const Notifications = () => {
           message,
           status,
           admin_action,
+          request_status,
           read_by_user,
           created_at,
           updated_at
@@ -210,6 +211,12 @@ const Notifications = () => {
         return <Badge variant="destructive" className="flex items-center gap-1"><X className="h-3 w-3" /> Rejected</Badge>;
       case 'in_progress':
         return <Badge variant="secondary" className="flex items-center gap-1"><AlertCircle className="h-3 w-3" /> In Progress</Badge>;
+      case 'sample_collected':
+        return <Badge variant="blue" className="flex items-center gap-1"><Check className="h-3 w-3" /> Sample Collected</Badge>;
+      case 'report_generated':
+        return <Badge variant="secondary" className="flex items-center gap-1"><Clock className="h-3 w-3" /> Report Generated</Badge>;
+      case 'completed':
+        return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Completed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -330,6 +337,68 @@ const Notifications = () => {
                   </CardHeader>
                   <CardContent>
                     <p className="mb-2">{notification.message}</p>
+                    
+                    {/* New - Request Status Section */}
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                        <span className="text-sm text-gray-500">Test Status:</span>
+                        <div className="mt-1 sm:mt-0">
+                          {getStatusBadge(notification.request_status || 'pending')}
+                        </div>
+                      </div>
+                      
+                      {/* Status Timeline */}
+                      <div className="relative mt-6 border-l-2 border-gray-200 pl-8 ml-2 space-y-8">
+                        <div className={`relative ${notification.request_status ? 'text-blue-600' : 'text-gray-500'}`}>
+                          <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 border-2 border-white">
+                            <Check className="h-3 w-3" />
+                          </div>
+                          <p className="font-medium">Booking Received</p>
+                          <p className="text-xs text-gray-500">{new Date(notification.created_at).toLocaleString()}</p>
+                        </div>
+                        
+                        {(['sample_collected', 'report_generated', 'completed'].includes(notification.request_status || '')) && (
+                          <div className="relative text-blue-600">
+                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 border-2 border-white">
+                              <Check className="h-3 w-3" />
+                            </div>
+                            <p className="font-medium">Sample Collected</p>
+                            <p className="text-xs text-gray-500">Processing</p>
+                          </div>
+                        )}
+                        
+                        {(['report_generated', 'completed'].includes(notification.request_status || '')) && (
+                          <div className="relative text-blue-600">
+                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 border-2 border-white">
+                              <Check className="h-3 w-3" />
+                            </div>
+                            <p className="font-medium">Report Generated</p>
+                            <p className="text-xs text-gray-500">Ready for review</p>
+                          </div>
+                        )}
+                        
+                        {(['completed'].includes(notification.request_status || '')) && (
+                          <div className="relative text-blue-600">
+                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-green-100 border-2 border-white">
+                              <CheckCircle className="h-3 w-3" />
+                            </div>
+                            <p className="font-medium">Completed</p>
+                            <p className="text-xs text-gray-500">Your test is complete</p>
+                          </div>
+                        )}
+                        
+                        {!['completed'].includes(notification.request_status || '') && (
+                          <div className="relative text-gray-400">
+                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 border-2 border-white">
+                              <Clock className="h-3 w-3" />
+                            </div>
+                            <p className="font-medium">Completed</p>
+                            <p className="text-xs">Pending</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
                     <div className="flex justify-between items-center mt-4">
                       <div className="text-sm text-gray-500">
                         Last updated: {new Date(notification.updated_at).toLocaleString()}

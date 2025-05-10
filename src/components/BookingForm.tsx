@@ -236,6 +236,20 @@ const BookingForm = () => {
 
       console.log("Creating booking with values:", values);
       
+      // Get the package name first
+      const { data: packageData, error: packageError } = await supabase
+        .from("packages")
+        .select("name")
+        .eq("id", values.testPackage)
+        .single();
+        
+      if (packageError) {
+        console.error("Error fetching package name:", packageError);
+        throw packageError;
+      }
+      
+      const packageName = packageData?.name || "Unknown Package";
+      
       // Create the booking
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
@@ -252,8 +266,6 @@ const BookingForm = () => {
           gender: values.gender,
           address: values.address,
           pincode: values.pincode,
-          // printed_report: values.printedReport,
-          // contact_preferences: values.contactPreferences
         })
         .select()
         .single();
@@ -269,15 +281,16 @@ const BookingForm = () => {
 
       console.log("Booking created successfully:", bookingData);
 
-      // Create notification for the admin
+      // Create notification for the admin with package name
       const { error: notificationError } = await supabase
         .from("booking_notifications")
         .insert({
           user_id: user.id,
           booking_id: bookingData.id,
-          message: `New test booking for ${values.name}: ${values.testPackage}`,
+          message: `New test booking for ${values.name}: ${packageName}`,
           status: 'pending',
-          admin_action: 'pending'
+          admin_action: 'pending',
+          request_status: 'pending' // Add this for the new status tracking
         });
 
       if (notificationError) {
@@ -813,7 +826,7 @@ const BookingForm = () => {
                         </div>
                         {pkg.tests?.length === 0 && (
                           <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 20 20" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
                             <p className="text-gray-500 font-medium">No tests added yet</p>
@@ -838,7 +851,7 @@ const BookingForm = () => {
                     }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 11-1.414-1.414l4-4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414z" clipRule="evenodd" />
                     </svg>
                   </Button>
                   <Button
