@@ -18,7 +18,7 @@ const TestManagement = () => {
     queryKey: ["testMainCategories"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("test_packages")
+        .from("test_main_categories")
         .select("*")
         .order("name");
       
@@ -47,11 +47,10 @@ const TestManagement = () => {
     
     try {
       const { error } = await supabase
-        .from("test_packages")
+        .from("test_main_categories")
         .insert([{
           name: formData.get("name"),
           description: formData.get("description"),
-          price: Number(formData.get("price")),
         }]);
 
       if (error) throw error;
@@ -104,13 +103,6 @@ const TestManagement = () => {
         <form onSubmit={handleAddCategory} className="space-y-4">
           <Input name="name" placeholder="Category Name" required />
           <Textarea name="description" placeholder="Category Description" />
-          <Input
-            name="price"
-            type="number"
-            placeholder="Price"
-            step="0.01"
-            required
-          />
           <Button type="submit">Add Category</Button>
         </form>
       </div>

@@ -31,29 +31,29 @@ const App: React.FC = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/book" element={
-              // <ProtectedRoute>
+              <ProtectedRoute>
                 <Book />
-              // </ProtectedRoute>
+              </ProtectedRoute>
             } />
             <Route path="/notifications" element={
-              // <ProtectedRoute>
+              <ProtectedRoute>
                 <Notifications />
-              // </ProtectedRoute>
+              </ProtectedRoute>
             } />
             <Route path="/manage-tests" element={
-              // <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['admin']}>
                 <ManageTests />
-              // </ProtectedRoute>
+              </ProtectedRoute>
             } />
             <Route path="/role-config" element={
-              // <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['admin']}>
                 <RoleConfig />
-              // </ProtectedRoute>
+              </ProtectedRoute>
             } />
             <Route path="/master-data" element={
-              // <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['admin']}>
                 <MasterData />
-              // </ProtectedRoute>
+              </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />
           </Routes>

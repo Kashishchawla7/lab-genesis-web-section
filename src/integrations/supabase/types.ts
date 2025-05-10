@@ -9,6 +9,53 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      booking_notifications: {
+        Row: {
+          admin_action: string | null
+          booking_id: string
+          created_at: string
+          id: string
+          message: string
+          read_by_admin: boolean
+          read_by_user: boolean
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_action?: string | null
+          booking_id: string
+          created_at?: string
+          id?: string
+          message: string
+          read_by_admin?: boolean
+          read_by_user?: boolean
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_action?: string | null
+          booking_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          read_by_admin?: boolean
+          read_by_user?: boolean
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           address: string
@@ -17,8 +64,12 @@ export type Database = {
           appointment_time: string
           contact_preferences: Json
           created_at: string
+          email: string | null
           gender: string
           id: string
+          name: string | null
+          phone: string | null
+          pincode: string | null
           printed_report: boolean
           status: string
           test_package_id: string
@@ -32,8 +83,12 @@ export type Database = {
           appointment_time: string
           contact_preferences?: Json
           created_at?: string
+          email?: string | null
           gender: string
           id?: string
+          name?: string | null
+          phone?: string | null
+          pincode?: string | null
           printed_report?: boolean
           status?: string
           test_package_id: string
@@ -47,8 +102,12 @@ export type Database = {
           appointment_time?: string
           contact_preferences?: Json
           created_at?: string
+          email?: string | null
           gender?: string
           id?: string
+          name?: string | null
+          phone?: string | null
+          pincode?: string | null
           printed_report?: boolean
           status?: string
           test_package_id?: string
@@ -60,7 +119,7 @@ export type Database = {
             foreignKeyName: "bookings_test_package_id_fkey"
             columns: ["test_package_id"]
             isOneToOne: false
-            referencedRelation: "test_packages"
+            referencedRelation: "packages"
             referencedColumns: ["id"]
           },
         ]
@@ -89,6 +148,24 @@ export type Database = {
           message?: string
           title?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      package_level: {
+        Row: {
+          created_at: string
+          id: number
+          level_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          level_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          level_name?: string | null
         }
         Relationships: []
       }
@@ -322,7 +399,6 @@ export type Database = {
           id: string
           name: string
           package_id: string | null
-          type_id: string | null
           updated_at: string
         }
         Insert: {
@@ -330,7 +406,6 @@ export type Database = {
           id?: string
           name: string
           package_id?: string | null
-          type_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -338,7 +413,6 @@ export type Database = {
           id?: string
           name?: string
           package_id?: string | null
-          type_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -347,13 +421,6 @@ export type Database = {
             columns: ["package_id"]
             isOneToOne: false
             referencedRelation: "packages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tests_type_id_fkey"
-            columns: ["type_id"]
-            isOneToOne: false
-            referencedRelation: "test_type_mt"
             referencedColumns: ["id"]
           },
         ]
@@ -387,6 +454,18 @@ export type Database = {
       get_user_role: {
         Args: { user_id: string }
         Returns: string
+      }
+      update_package: {
+        Args: {
+          p_package_id: string
+          p_name: string
+          p_type_id: string
+          p_level_id: string
+          p_new_price: number
+          p_old_price: number
+          p_tests: string[]
+        }
+        Returns: undefined
       }
     }
     Enums: {

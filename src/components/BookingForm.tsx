@@ -1,14 +1,14 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { z } from "zod"
-import { format } from "date-fns"
-import { Calendar as CalendarIcon, Phone, X, ChevronUp, ChevronDown } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { useToast } from "@/components/ui/use-toast"
+import { z } from "zod";
+import { format } from "date-fns";
+import { Calendar as CalendarIcon, Phone } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Form,
   FormControl,
@@ -16,23 +16,24 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Test {
   id: string;
@@ -76,6 +77,10 @@ const formSchema = z.object({
   gender: z.string({ required_error: "Please select your gender." }),
   address: z.string().min(25, { message: "Address must be at least 25 characters." }),
   testPackage: z.string({ required_error: "Please select a test package." }),
+  pincode: z.string().min(6, { message: "Please enter a valid pin code." }),
+  iAuthorize: z.boolean().refine((value) => value === true, {
+    message: 'Please authorize us to contact you.',
+  }),
 });
 
 const BookingForm = () => {
@@ -90,6 +95,7 @@ const BookingForm = () => {
   // Add state for top 4 packages by test count
   // const [moretestcategories, setMoretestcategories] = useState<TestCategory[]>([]);
 
+  const { user } = useAuth();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -101,6 +107,7 @@ const BookingForm = () => {
       gender: "",
       address: "",
       testPackage: "",
+      iAuthorize: false,
     },
   });
 
@@ -227,21 +234,24 @@ const BookingForm = () => {
         throw new Error("Please sign in to make a booking");
       }
 
+      // Create the booking
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .insert({
           user_id: user.id,
           test_package_id: values.testPackage,
           status: 'pending',
-          address: values.address,
-          age: parseInt(values.age),
-          gender: values.gender,
-          pincode: values.pincode,
-          phone: values.phone,
-          email: values.email,
+          appointment_date: values.appointmentDate.toISOString(),
+          appointment_time: values.timeSlot,
           name: values.name,
-          appointment_date: new Date().toISOString().split('T')[0],
-          appointment_time: new Date().toTimeString().split(' ')[0]
+          email: values.email,
+          phone: values.phone,
+          age: parseInt(values.age, 10),
+          gender: values.gender,
+          address: values.address,
+          pincode: values.pincode, // Using pin code from the form
+          printed_report: values.printedReport,
+          contact_preferences: values.contactPreferences
         })
         .select()
         .single();
@@ -250,13 +260,15 @@ const BookingForm = () => {
         throw bookingError;
       }
 
+      // Create notification for the admin
       const { error: notificationError } = await supabase
-        .from("notifications")
+        .from("booking_notifications")
         .insert({
           user_id: user.id,
-          title: "New Test Booking",
-          message: `New booking for test package: ${values.testPackage}`,
-          related_booking_id: bookingData.id
+          booking_id: bookingData.id,
+          message: `New test booking for package: ${values.testPackage}`,
+          status: 'pending',
+          admin_action: 'pending'
         });
 
       if (notificationError) {
@@ -415,12 +427,12 @@ const BookingForm = () => {
 
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="testPackage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="pincode"
+                      render={({ field }) => (
+                        <FormItem>
                           <FormControl>
                             <SelectTrigger className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]">
                               <SelectValue placeholder="Select Test Package*" />
