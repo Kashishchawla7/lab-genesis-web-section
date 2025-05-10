@@ -1,14 +1,14 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { z } from "zod"
-import { format } from "date-fns"
-import { Calendar as CalendarIcon, Phone } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { useToast } from "@/components/ui/use-toast"
+import { z } from "zod";
+import { format } from "date-fns";
+import { Calendar as CalendarIcon, Phone } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Form,
   FormControl,
@@ -16,23 +16,24 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Test {
   id?: string;
@@ -68,10 +69,15 @@ const formSchema = z.object({
     email: z.boolean().default(false),
     sms: z.boolean().default(false),
   }),
+  pincode: z.string().min(6, { message: "Please enter a valid pin code." }),
+  iAuthorize: z.boolean().refine((value) => value === true, {
+    message: 'Please authorize us to contact you.',
+  }),
 });
 
 const BookingForm = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -82,6 +88,7 @@ const BookingForm = () => {
         email: false,
         sms: false,
       },
+      iAuthorize: false,
     },
   });
 
@@ -108,12 +115,24 @@ const BookingForm = () => {
         throw new Error("User not authenticated");
       }
 
+      // Create the booking
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .insert({
           user_id: user.id,
           test_package_id: values.testPackage,
-          status: 'pending'
+          status: 'pending',
+          appointment_date: values.appointmentDate.toISOString(),
+          appointment_time: values.timeSlot,
+          name: values.name,
+          email: values.email,
+          phone: values.phone,
+          age: parseInt(values.age, 10),
+          gender: values.gender,
+          address: values.address,
+          pincode: values.pincode, // Using pin code from the form
+          printed_report: values.printedReport,
+          contact_preferences: values.contactPreferences
         })
         .select()
         .single();
@@ -122,13 +141,15 @@ const BookingForm = () => {
         throw bookingError;
       }
 
+      // Create notification for the admin
       const { error: notificationError } = await supabase
-        .from("notifications")
+        .from("booking_notifications")
         .insert({
           user_id: user.id,
-          title: "New Test Booking",
-          message: `New booking for test package: ${values.testPackage}`,
-          related_booking_id: bookingData.id
+          booking_id: bookingData.id,
+          message: `New test booking for package: ${values.testPackage}`,
+          status: 'pending',
+          admin_action: 'pending'
         });
 
       if (notificationError) {
@@ -223,7 +244,7 @@ const BookingForm = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="name"
+                      name="pincode"
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
@@ -480,7 +501,7 @@ const BookingForm = () => {
 
                   <FormField
                     control={form.control}
-                    name="contactPreferences.whatsapp"
+                    name="iAuthorize"
                     render={({ field }) => (
                       <FormItem className="flex items-start space-x-3">
                         <FormControl>
@@ -493,6 +514,7 @@ const BookingForm = () => {
                           <FormLabel className="text-sm">
                             I authorize Thyrocare representative to contact me.I understand that this will override the DND status on my mobile number.*
                           </FormLabel>
+                          <FormMessage />
                         </div>
                       </FormItem>
                     )}

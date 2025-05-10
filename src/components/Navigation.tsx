@@ -1,4 +1,3 @@
-
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Home, Calendar, Settings, Bell, Users } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { Badge } from "@/components/ui/badge";
 
 interface MenuItem {
   id: string;
@@ -31,6 +31,62 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 const Navigation = () => {
   const { user, signOut } = useAuth();
   const location = useLocation();
+
+  // Query for unread notifications count (for users)
+  const { data: unreadCount } = useQuery({
+    queryKey: ["unread-notifications-count", user?.id],
+    queryFn: async () => {
+      if (!user) return 0;
+      
+      const { count, error } = await supabase
+        .from("booking_notifications")
+        .select("*", { count: 'exact', head: true })
+        .eq("user_id", user.id)
+        .eq("read_by_user", false);
+      
+      if (error) {
+        console.error("Error fetching notification count:", error);
+        return 0;
+      }
+      
+      return count || 0;
+    },
+    enabled: !!user,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  // Query for unread admin notifications count
+  const { data: adminUnreadCount } = useQuery({
+    queryKey: ["admin-notifications-count", user?.id],
+    queryFn: async () => {
+      if (!user) return 0;
+      
+      // Check if user is admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .single();
+      
+      if (!roleData) return 0;
+      
+      // Get count of unread admin notifications
+      const { count, error } = await supabase
+        .from("booking_notifications")
+        .select("*", { count: 'exact', head: true })
+        .eq("read_by_admin", false);
+      
+      if (error) {
+        console.error("Error fetching admin notification count:", error);
+        return 0;
+      }
+      
+      return count || 0;
+    },
+    enabled: !!user,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
   // Default menu items if no role is found
   const defaultMenuItems: MenuItem[] = [
@@ -100,6 +156,11 @@ const Navigation = () => {
             <div className="flex space-x-6">
               {menuItems.map((item) => {
                 const Icon = iconMap[item.icon] || Home;
+                
+                // Add notification indicator for notification routes
+                const showUserBadge = item.path === "/notifications" && (unreadCount && unreadCount > 0);
+                const showAdminBadge = item.path === "/master-data" && (adminUnreadCount && adminUnreadCount > 0);
+                
                 return (
                   <Link
                     key={item.id}
@@ -114,6 +175,14 @@ const Navigation = () => {
                       location.pathname === item.path ? "mr-2" : "mr-2"
                     }`} />
                     {item.name}
+                    
+                    {showUserBadge && (
+                      <Badge variant="blue" className="ml-1">{unreadCount}</Badge>
+                    )}
+                    
+                    {showAdminBadge && (
+                      <Badge variant="blue" className="ml-1">{adminUnreadCount}</Badge>
+                    )}
                   </Link>
                 );
               })}
