@@ -310,7 +310,7 @@ const BookingForm = () => {
           // title: "New Test Booking",
           status: BookingStatus.PENDING,
           created_at: new Date().toISOString(),
-          message: `New booking for test package: ${packageName} by ${values.name} at ${values.address}`,
+          message: `New booking for test package: ${packageName} by ${values.name} at ${values.address}. Phone Number: ${values.phone}`,
           booking_id: bookingData.id
         });
 

@@ -31,7 +31,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       // Then get the role details from roles table
       const { data: roleData, error: roleError } = await supabase
         .from("roles")
-        .select("name")
+        .select("id, name, menu_items")
         .eq("name", userRoleData.role)
         .single();
 
