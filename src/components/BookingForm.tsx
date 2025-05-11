@@ -1,161 +1,91 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { useState, useRef } from "react";
+import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { useToast } from "@/components/ui/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { z } from "zod"
-import { format } from "date-fns"
-import { Calendar as CalendarIcon, Phone, X, ChevronUp, ChevronDown } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { useToast } from "@/components/ui/use-toast"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/hooks/useAuth";
-
-interface Test {
-  id: string;
-  name: string;
-  package_id: string;
-}
-
-interface TestType {
-  id: string;
-  name: string;
-}
-
-interface PackageLevel {
-  id: string;
-  name: string;
-}
-
-interface TestCategory {
-  id: string;
-  name: string;
-  type_id: string;
-  level_id: string;
-  new_price: number;
-  old_price?: number;
-  tests: Test[];
-  test_type_mt: { name: string };
-  package_level_mt: { name: string };
-}
-
-interface FilterState {
-  types: string[];
-  levels: string[];
-}
-
-// Add booking status enum
-export enum BookingStatus {
-  PENDING = 'pending',
-  SAMPLE_COLLECTED = 'sample_collected',
-  COMPLETED = 'completed'
-}
 
 const formSchema = z.object({
-  pincode: z.string().min(6, { message: "Please enter a valid pincode." }),
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  phone: z.string().min(10, { message: "Please enter a valid phone number." }),
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  age: z.string().min(1, { message: "Age is required." }),
-  gender: z.string({ required_error: "Please select your gender." }),
-  address: z.string().min(25, { message: "Address must be at least 25 characters." }),
-  testPackage: z.string({ required_error: "Please select a test package." }),
+  testPackageId: z.string().min(1, {
+    message: "Please select a test package.",
+  }),
+  appointmentDate: z.date({
+    required_error: "Please select a date.",
+  }),
+  appointmentTime: z.string().min(1, {
+    message: "Please select a time.",
+  }),
+  printedReport: z.boolean().default(false),
+  contactSms: z.boolean().default(false),
+  contactCall: z.boolean().default(false),
+  contactEmail: z.boolean().default(false),
+  contactWhatsapp: z.boolean().default(false),
+  name: z.string().min(2, {
+    message: "Name must be at least 2 characters.",
+  }),
+  email: z.string().email({
+    message: "Please enter a valid email.",
+  }),
+  phone: z.string().regex(/^(\+?\d{1,4}[- ]?)?\d{10}$/, {
+    message: "Please enter a valid 10-digit phone number.",
+  }),
+  pincode: z.string().regex(/^[1-9][0-9]{5}$/, {
+    message: "Please enter a valid 6-digit pincode.",
+  }),
+  address: z.string().min(10, {
+    message: "Address must be at least 10 characters.",
+  }),
+  age: z.number().min(1, {
+    message: "Age must be at least 1.",
+  }).max(150, {
+    message: "Age must be less than 150.",
+  }),
+  gender: z.enum(['male', 'female', 'other'], {
+    required_error: "Please select a gender.",
+  }),
 });
 
-// Add this component before the main BookingForm component
-const BookingStatusBadge = ({ status, onUpdate }: { status: BookingStatus, onUpdate: (newStatus: BookingStatus) => void }) => {
-  const statusColors = {
-    [BookingStatus.PENDING]: "bg-yellow-100 text-yellow-800",
-    [BookingStatus.SAMPLE_COLLECTED]: "bg-blue-100 text-blue-800",
-    [BookingStatus.COMPLETED]: "bg-green-100 text-green-800"
-  };
-
-  const statusLabels = {
-    [BookingStatus.PENDING]: "Pending",
-    [BookingStatus.SAMPLE_COLLECTED]: "Sample Collected",
-    [BookingStatus.COMPLETED]: "Completed"
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColors[status]}`}>
-        {statusLabels[status]}
-      </span>
-      <Select
-        value={status}
-        onValueChange={(value) => onUpdate(value as BookingStatus)}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Update Status" />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.values(BookingStatus).map((status) => (
-            <SelectItem key={status} value={status}>
-              {statusLabels[status]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-};
-
 const BookingForm = () => {
-  const [selectedFilters, setSelectedFilters] = useState<FilterState>({
-    types: [],
-    levels: []
-  });
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const carouselRef = useRef<HTMLDivElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-
-  // Add state for top 4 packages by test count
-  // const [moretestcategories, setMoretestcategories] = useState<TestCategory[]>([]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      pincode: "",
+      testPackageId: "",
+      appointmentDate: new Date(),
+      appointmentTime: "",
+      printedReport: false,
+      contactSms: false,
+      contactCall: false,
+      contactEmail: false,
+      contactWhatsapp: false,
       name: "",
-      phone: "",
       email: "",
-      age: "",
-      gender: "",
+      phone: "",
+      pincode: "",
       address: "",
-      testPackage: "",
+      age: 18,
+      gender: 'male',
     },
   });
 
-  // Fetch test types
-  const { data: types } = useQuery({
-    queryKey: ["testTypes"],
+  const { data: packages, isLoading: isLoadingPackages } = useQuery({
+    queryKey: ["packages"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("test_type_mt")
+        .from("packages")
         .select("*")
         .order('name');
       
@@ -185,475 +115,439 @@ const BookingForm = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("packages")
-        .select(`
-          id,
-          name,
-          type_id,
-          level_id,
-          new_price,
-          old_price,
-          test_type_mt!inner(name),
-          package_level_mt!inner(name),
-          tests(*)
-        `)
-        .order('name');
-      
+        .select("*")
+        .order("name", { ascending: true });
+
       if (error) {
-        throw error;
+        console.error("Error fetching packages:", error);
+        return [];
       }
-
-      // Transform the data to match our interface
-      const transformedData = (data || []).map(pkg => ({
-        id: pkg.id,
-        name: pkg.name,
-        type_id: pkg.type_id,
-        level_id: pkg.level_id,
-        new_price: pkg.new_price,
-        old_price: pkg.old_price,
-        tests: pkg.tests || [],
-        test_type_mt: pkg.test_type_mt,
-        package_level_mt: pkg.package_level_mt
-      }));
-      
-
-      // Set top 4 packages by test count
-      // const sortedByTestCount = [...transformedData].sort((a, b) => 
-      //   (b.tests?.length || 0) - (a.tests?.length || 0)
-      // );
-      // setMoretestcategories(categories?.slice(0, 4));
-      
-      return transformedData;
+      return data || [];
     },
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
-  
-  // Get top 4 packages by test count
-  const moretestcategories = categories 
-    ? [...categories].slice(0, 4)
-    : [];
 
-  // Filter packages and handle empty/undefined cases
-  let filteredPackages = categories?.filter(pkg => {
-    const { types, levels } = selectedFilters;
-    
-    // If no filters are selected, show all packages
-    if (types.length === 0 && levels.length === 0) {
-      return true;
-    }
-
-    // Check if package matches selected type filters
-    const typeMatch = types.length === 0 || types.includes(pkg.test_type_mt.name);
-
-    // Check if package matches selected level filters
-    const levelMatch = levels.length === 0 || levels.includes(pkg.package_level_mt.name);
-
-    // Return true only if both type and level conditions are met
-    return typeMatch && levelMatch;
-  }) || [];
-
-  // If no packages match the filters, show all packages
-  if (filteredPackages.length === 0) {
-    filteredPackages = categories || [];
-  }
-
-  // Log the available package levels for debugging
-  // console.log('Available Levels:', levels?.map(level => level.name));
-  // console.log('Selected Filters:', selectedFilters);
-
-  const createBookingMutation = useMutation({
-    mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error("Please sign in to make a booking");
-      }
-      const { data: packageData, error: packageError } = await supabase
-        .from("packages")
-        .select("name")
-        .eq("id", values.testPackage)
-        .single();
-        
-      if (packageError) {
-        // console.error("Error fetching package name:", packageError);
-        throw packageError;
-      }
-      
-      const packageName = packageData?.name || "Unknown Package";
-
+  const submitHandler = async (values: z.infer<typeof formSchema>) => {
+    setIsSubmitting(true);
+    try {
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .insert({
-          user_id: user.id,
-          test_package_id: values.testPackage,
-          status: BookingStatus.PENDING,
-          address: values.address,
-          age: parseInt(values.age),
-          gender: values.gender,
-          pincode: values.pincode,
-          phone: values.phone,
-          email: values.email,
+          test_package_id: values.testPackageId,
+          appointment_date: values.appointmentDate,
+          appointment_time: values.appointmentTime,
+          printed_report: values.printedReport,
+          contact_preferences: {
+            sms: values.contactSms,
+            call: values.contactCall,
+            email: values.contactEmail,
+            whatsapp: values.contactWhatsapp,
+          },
           name: values.name,
-          appointment_date: new Date().toISOString().split('T')[0],
-          appointment_time: new Date().toTimeString().split(' ')[0]
+          email: values.email,
+          phone: values.phone,
+          pincode: values.pincode,
+          address: values.address,
+          age: values.age,
+          gender: values.gender,
         })
-        .select()
+        .select();
+
+      if (bookingError) throw bookingError;
+
+      const { data: packageData } = await supabase
+        .from("packages")
+        .select("name")
+        .eq("id", values.testPackageId)
         .single();
 
-      if (bookingError) {
-        throw bookingError;
-      }
-      // console.log('Booking Data:', values);
-      const { error: notificationError } = await supabase
-        .from("booking_notifications")
-        .insert({
-          user_id: user.id,
-          // title: "New Test Booking",
-          status: BookingStatus.PENDING,
-          created_at: new Date().toISOString(),
-          message: `New booking for test package: ${packageName} by ${values.name} at ${values.address}. Phone Number: ${values.phone}`,
-          booking_id: bookingData.id
-        });
+      const packageName = packageData?.name || "Unknown Package";
 
-      if (notificationError) {
-        throw notificationError;
+      if (bookingData && bookingData.length > 0) {
+        const { error: notifError } = await supabase
+          .from("booking_notifications")
+          .insert({
+            booking_id: bookingData[0].id,
+            message: `Test booked: ${packageName}`,
+            status: "pending",
+            request_status: "pending",
+          });
+
+        if (notifError) throw notifError;
       }
 
-      return bookingData;
-    },
-    onSuccess: (booking) => {
       toast({
         title: "Booking Successful",
-        description: "Your test booking has been created. An admin will review it shortly.",
+        description: "Your test has been booked successfully.",
       });
-      form.reset();
-    },
-    onError: (error) => {
+
+      reset();
+      setIsSubmitting(false);
+    } catch (error) {
+      console.error("Error submitting form:", error);
       toast({
-        title: "Booking Failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive"
+        variant: "destructive",
+        title: "Error",
+        description: "There was a problem with your submission. Please try again.",
       });
-    }
-  });
-
-  // Add status update mutation
-  const updateBookingStatusMutation = useMutation({
-    mutationFn: async ({ bookingId, newStatus }: { bookingId: string, newStatus: BookingStatus }) => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .update({ status: newStatus })
-        .eq("id", bookingId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Status Updated",
-        description: "Booking status has been updated successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Update Failed",
-        description: error instanceof Error ? error.message : "Failed to update status",
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Add status update function
-  const updateBookingStatus = (bookingId: string, newStatus: BookingStatus) => {
-    updateBookingStatusMutation.mutate({ bookingId, newStatus });
-  };
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    createBookingMutation.mutate(values);
-  }
-
-  // Handle filter selection
-  const handleFilterSelection = (value: string, filterType: 'types' | 'levels') => {
-    // console.log('Setting filter:', filterType, value);
-    setSelectedFilters(prev => {
-      const currentFilters = prev[filterType];
-      const newFilters = currentFilters.includes(value)
-        ? currentFilters.filter(filter => filter !== value)
-        : [...currentFilters, value];
-      
-      // console.log(`New ${filterType} filters:`, newFilters);
-      return {
-        ...prev,
-        [filterType]: newFilters
-      };
-    });
-  };
-  // setFilteredPackages(categories);
-
-  // Reset all filters
-  const resetFilters = () => {
-    setSelectedFilters({
-      types: [],
-      levels: []
-    });
-  };
-
-  // Filter packages based on selected filters
-
-  
-
-  // console.log('Filtered packages:', filteredPackages.map(pkg => pkg.name));
-
-  const scrollCarousel = (direction: "left" | "right") => {
-    if (carouselRef.current) {
-      const scrollAmount = 300; // Adjust this value based on your card width
-      carouselRef.current.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth"
-      });
+      setIsSubmitting(false);
     }
   };
+
+  const { reset } = form;
 
   return (
-    <>
-    <div className="min-h-screen bg-gradient-to-br from-[#004236] via-[#004236] to-[#006236]">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-col lg:flex-row gap-8 items-start py-8">
-          {/* Left Column - Test Packages */}
-          <div className="lg:w-1/2">
-            {/* Hero Section */}
-            <div className="text-white mb-8">
-              <h1 className="text-5xl font-bold mb-2 tracking-wide">
-                MAKE IT YOUR RIGHT<br />
-                TO HAVE A HEALTHY LIFE
-              </h1>
-              <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mt-4">
-                <Phone className="h-6 w-6" />
-                <span className="text-2xl font-semibold">9355502226</span>
-              </div>
-            </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(submitHandler)} className="space-y-8">
+        <FormField
+          control={form.control}
+          name="testPackageId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Test Package</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a test package" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {isLoadingPackages ? (
+                    <SelectItem value="" disabled>Loading packages...</SelectItem>
+                  ) : (
+                    packages?.map((pkg) => (
+                      <SelectItem key={pkg.id} value={pkg.id}>
+                        {pkg.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Select the test package you want to book.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-            {/* Package Cards */}
-            <div className="relative mb-8">
-              <div className="grid grid-cols-2 gap-6">
-                {moretestcategories
-                  ?.slice(0, 4)
-                  .map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    className={cn(
-                      "bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]",
-                      form.getValues("testPackage") === pkg.name && "ring-2 ring-[#004236]"
-                    )}
-                    onClick={() => form.setValue("testPackage", pkg.name)}
-                  >
-                    <div className="bg-gradient-to-r from-[#004236] to-[#006236] text-white p-4">
-                      <h3 className="text-xl font-bold mb-1">{pkg.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm bg-white/20 px-2 py-0.5 rounded">
-                          {pkg.test_type_mt?.name}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold text-[#004236]">₹{pkg.new_price}</span>
-                        {pkg.old_price && (
-                          <span className="text-gray-400 line-through text-lg">₹{pkg.old_price}</span>
+        <div className="flex flex-col md:flex-row gap-4">
+          <FormField
+            control={form.control}
+            name="appointmentDate"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Appointment Date</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full pl-3.5 text-left font-normal",
+                          !field.value && "text-muted-foreground"
                         )}
-                      </div>
-                      {pkg.old_price && (
-                        <div className="mt-1 text-sm text-green-600 font-medium">
-                          Save ₹{pkg.old_price - pkg.new_price}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) =>
+                        date < new Date()
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormDescription>
+                  Select the date for your appointment.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="appointmentTime"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Appointment Time</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a time" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="09:00">09:00 AM</SelectItem>
+                    <SelectItem value="10:00">10:00 AM</SelectItem>
+                    <SelectItem value="11:00">11:00 AM</SelectItem>
+                    <SelectItem value="12:00">12:00 PM</SelectItem>
+                    <SelectItem value="13:00">01:00 PM</SelectItem>
+                    <SelectItem value="14:00">02:00 PM</SelectItem>
+                    <SelectItem value="15:00">03:00 PM</SelectItem>
+                    <SelectItem value="16:00">04:00 PM</SelectItem>
+                    <SelectItem value="17:00">05:00 PM</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Select the time for your appointment.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="printedReport"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base">Printed Report</FormLabel>
+                <FormDescription>
+                  Do you want a printed copy of your report?
+                </FormDescription>
               </div>
-            </div>
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
-           
-
-            {/* Important Notes */}
-            <div className="text-white/80 text-sm flex flex-row items-center justify-start gap-4">
-              <p className="flex items-center gap-1">
-                <span className="text-red-400">*</span>
-                10-12 hrs fasting is essential
-              </p>
-              <p className="flex items-center gap-1">
-                <span className="text-red-400">*</span>
-                offer valid for limited period only
-              </p>
-              <p className="flex items-center gap-1">
-                <span className="text-red-400">#</span>
-                eGFR applicable above 18 years of age
-              </p>
-            </div>
+        <div>
+          <FormLabel>Contact Preferences</FormLabel>
+          <div className="flex flex-col gap-2">
+            <FormField
+              control={form.control}
+              name="contactSms"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center rounded-lg border p-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-0.5 ml-4">
+                    <FormLabel className="text-base">SMS</FormLabel>
+                    <FormDescription>
+                      Receive updates via SMS.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contactCall"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center rounded-lg border p-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-0.5 ml-4">
+                    <FormLabel className="text-base">Call</FormLabel>
+                    <FormDescription>
+                      Receive updates via Call.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contactEmail"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center rounded-lg border p-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-0.5 ml-4">
+                    <FormLabel className="text-base">Email</FormLabel>
+                    <FormDescription>
+                      Receive updates via Email.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contactWhatsapp"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center rounded-lg border p-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-0.5 ml-4">
+                    <FormLabel className="text-base">WhatsApp</FormLabel>
+                    <FormDescription>
+                      Receive updates via WhatsApp.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
           </div>
+        </div>
 
-          {/* Right Column - Booking Form */}
-          <div className="lg:w-1/2">
-            <div className="bg-white rounded-xl p-6 shadow-xl">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-[#004236]">Book Your Test Now</h2>
-                <p className="text-gray-600 mt-1">Fill Out The Form</p>
-              </div>
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter your name" {...field} />
+              </FormControl>
+              <FormDescription>
+                Enter the name of the patient.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="testPackage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]">
-                              <SelectValue placeholder="Select Test Package*" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="max-h-[300px]">
-                            {filteredPackages?.map((pkg) => (
-                              <SelectItem 
-                                key={pkg.id} 
-                                value={pkg.id}
-                                className="focus:bg-gray-100 cursor-pointer"
-                              >
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{pkg.name}</span>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-sm text-gray-500">
-                                      {pkg.tests?.length || 0} Tests
-                                    </span>
-                                    <span className="text-sm text-blue-600 font-medium">
-                                      ₹{pkg.new_price}
-                                    </span>
-                                    {pkg.old_price && (
-                                      <span className="text-sm text-gray-400 line-through">
-                                        ₹{pkg.old_price}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter your email" type="email" {...field} />
+              </FormControl>
+              <FormDescription>
+                Enter the email of the patient.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-                  <FormField
-                    control={form.control}
-                    name="pincode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input 
-                            placeholder="Enter Pin Code*" 
-                            {...field}
-                            className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        <FormField
+          control={form.control}
+          name="phone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Phone</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter your phone number" type="tel" {...field} />
+              </FormControl>
+              <FormDescription>
+                Enter the phone number of the patient.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input 
-                            placeholder="Enter Name*" 
-                            {...field}
-                            className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        <FormField
+          control={form.control}
+          name="pincode"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Pincode</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter your pincode" {...field} />
+              </FormControl>
+              <FormDescription>
+                Enter the pincode of the address.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input 
-                            placeholder="Enter Mobile No*" 
-                            {...field}
-                            className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Address</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Enter your address"
+                  className="resize-none"
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                Enter the address of the patient.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input 
-                            placeholder="Email*" 
-                            {...field}
-                            className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        <div className="flex flex-col md:flex-row gap-4">
+          <FormField
+            control={form.control}
+            name="age"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Age</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter age" type="number" {...field} />
+                </FormControl>
+                <FormDescription>
+                  Enter the age of the patient.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="age"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input 
-                              placeholder="Age*" 
-                              {...field}
-                              className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]" 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="gender"
-                      render={({ field }) => (
-                        <FormItem>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]">
-                                <SelectValue placeholder="Gender*" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+          <FormField
+            control={form.control}
+            name="gender"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Gender</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Select the gender of the patient.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
                   <FormField
                     control={form.control}
@@ -789,110 +683,104 @@ const BookingForm = () => {
               <div 
                 className="flex gap-6 overflow-x-auto pb-4 scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
               >
-                {filteredPackages && filteredPackages.length > 0 ? (
-                  filteredPackages.map((pkg, index) => (
-                    <div
-                      key={pkg.id}
-                      className={cn(
-                        "bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group min-w-[300px] flex-shrink-0",
-                        index < 3 ? "flex-shrink-0" : "flex-shrink-0 transform translate-x-0 transition-transform duration-300"
-                      )}
-                    >
-                      <div className="p-6 space-y-4">
-                        {/* Header with Name and Badges */}
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between">
-                            <h3 className="font-semibold text-xl text-[#004236] group-hover:text-blue-600 transition-colors">
-                              {pkg.name}
-                            </h3>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {pkg.test_type_mt?.name && (
-                              <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium inline-flex items-center">
-                                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
-                                {pkg.test_type_mt.name}
-                              </span>
-                            )}
-                            {pkg.package_level_mt?.name && (
-                              <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium inline-flex items-center">
-                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
-                                {pkg.package_level_mt.name}
-                              </span>
-                            )}
-                          </div>
+                {filteredPackages.map((pkg, index) => (
+                  <div
+                    key={pkg.id}
+                    className={cn(
+                      "bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group min-w-[300px] flex-shrink-0",
+                      index < 3 ? "flex-shrink-0" : "flex-shrink-0 transform translate-x-0 transition-transform duration-300"
+                    )}
+                  >
+                    <div className="p-6 space-y-4">
+                      {/* Header with Name and Badges */}
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <h3 className="font-semibold text-xl text-[#004236] group-hover:text-blue-600 transition-colors">
+                            {pkg.name}
+                          </h3>
                         </div>
-
-                        {/* Price Section */}
-                        <div className="flex items-center gap-3 pb-4 border-b">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-2xl font-bold text-blue-600">₹{pkg.new_price}/-</span>
-                            {pkg.old_price && (
-                              <span className="text-lg line-through text-gray-400 relative">
-                                <span className="absolute inset-0 h-[2px] bg-red-400 top-1/2 -rotate-12"></span>
-                                ₹{pkg.old_price}/-
-                              </span>
-                            )}
-                          </div>
-                          {pkg.old_price && (
-                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                              Save ₹{pkg.old_price - pkg.new_price}/-
+                        <div className="flex flex-wrap gap-2">
+                          {pkg.test_type_mt?.name && (
+                            <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium inline-flex items-center">
+                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                              {pkg.test_type_mt.name}
+                            </span>
+                          )}
+                          {pkg.package_level_mt?.name && (
+                            <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium inline-flex items-center">
+                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
+                              {pkg.package_level_mt.name}
                             </span>
                           )}
                         </div>
+                      </div>
 
-                        {/* Test Preview Tiles */}
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-600">Included Tests:</span>
-                            <Button
-                              variant="ghost"
-                              onClick={() => setExpandedCategory(
-                                expandedCategory === pkg.id ? null : pkg.id
-                              )}
-                              className="text-blue-600 hover:text-blue-700 p-0 h-auto font-medium"
-                            >
-                              {expandedCategory === pkg.id ? 'View Less' : 'View All'}
-                            </Button>
-                          </div>
-                          <div className={cn(
-                            "grid grid-cols-1 gap-2 transition-all duration-300",
-                            expandedCategory === pkg.id ? "overflow-y-auto max-h-[200px]" : "overflow-hidden max-h-[200px]"
-                          )}>
-                            {pkg.tests?.map((test) => (
-                              <div
-                                key={test.id}
-                                className="bg-gray-50 rounded-lg p-3 border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all"
-                              >
-                                <div className="flex items-start gap-2">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                  </svg>
-                                  <span className="text-sm text-gray-700 font-medium line-clamp-2">
-                                    {test.name}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          {pkg.tests?.length === 0 && (
-                            <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                              </svg>
-                              <p className="text-gray-500 font-medium">No tests added yet</p>
-                            </div>
+                      {/* Price Section */}
+                      <div className="flex items-center gap-3 pb-4 border-b">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-blue-600">₹{pkg.new_price}/-</span>
+                          {pkg.old_price && (
+                            <span className="text-lg line-through text-gray-400 relative">
+                              <span className="absolute inset-0 h-[2px] bg-red-400 top-1/2 -rotate-12"></span>
+                              ₹{pkg.old_price}/-
+                            </span>
                           )}
                         </div>
+                        {pkg.old_price && (
+                          <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                            Save ₹{pkg.old_price - pkg.new_price}/-
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Test Preview Tiles */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-600">Included Tests:</span>
+                          <Button
+                            variant="ghost"
+                            onClick={() => setExpandedCategory(
+                              expandedCategory === pkg.id ? null : pkg.id
+                            )}
+                            className="text-blue-600 hover:text-blue-700 p-0 h-auto font-medium"
+                          >
+                            {expandedCategory === pkg.id ? 'View Less' : 'View All'}
+                          </Button>
+                        </div>
+                        <div className={cn(
+                          "grid grid-cols-1 gap-2 transition-all duration-300",
+                          expandedCategory === pkg.id ? "overflow-y-auto max-h-[200px]" : "overflow-hidden max-h-[200px]"
+                        )}>
+                          {pkg.tests?.map((test) => (
+                            <div
+                              key={test.id}
+                              className="bg-gray-50 rounded-lg p-3 border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all"
+                            >
+                              <div className="flex items-start gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                <span className="text-sm text-gray-700 font-medium line-clamp-2">
+                                  {test.name}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {pkg.tests?.length === 0 && (
+                          <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                            <p className="text-gray-500 font-medium">No tests added yet</p>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="w-full text-center py-8">
-                    <p className="text-gray-500">No packages available</p>
                   </div>
-                )}
+                ))}
               </div>
-              {filteredPackages && filteredPackages.length > 3 && (
+              {filteredPackages.length > 3 && (
                 <>
                   <Button
                     variant="outline"
@@ -936,21 +824,3 @@ const BookingForm = () => {
 };
 
 export default BookingForm;
-
-<style jsx global>{`
-  .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
-  }
-
-  .hide-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .hide-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-`}</style>

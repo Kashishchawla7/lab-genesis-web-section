@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +34,7 @@ interface BookingNotification {
     phone: string | null;
     appointment_date: string;
     appointment_time: string;
+    test_package_id: string;
   } | null;
 }
 
@@ -41,7 +43,7 @@ const AdminNotifications = () => {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState("pending");
 
-  const { data: notifications, isLoading, error, refetch } = useQuery({
+  const { data: notifications, isLoading, refetch } = useQuery({
     queryKey: ["admin-notifications"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -49,15 +51,21 @@ const AdminNotifications = () => {
         .select(`
           id, 
           message, 
+          status, 
           admin_action, 
           created_at, 
+          updated_at, 
           read_by_admin,
+          booking_id,
+          request_status,
           bookings (
+            id, 
             name, 
             email, 
             phone,
             appointment_date,
-            appointment_time
+            appointment_time,
+            test_package_id
           )
         `)
         .order("created_at", { ascending: false });
