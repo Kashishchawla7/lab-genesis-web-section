@@ -18,6 +18,7 @@ export type Database = {
           message: string
           read_by_admin: boolean
           read_by_user: boolean
+          request_status: string | null
           status: string
           updated_at: string
           user_id: string
@@ -30,6 +31,7 @@ export type Database = {
           message: string
           read_by_admin?: boolean
           read_by_user?: boolean
+          request_status?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -42,6 +44,7 @@ export type Database = {
           message?: string
           read_by_admin?: boolean
           read_by_user?: boolean
+          request_status?: string | null
           status?: string
           updated_at?: string
           user_id?: string

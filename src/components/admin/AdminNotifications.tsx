@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -12,6 +13,7 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  ArrowRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface BookingNotification {
   id: string;
@@ -31,6 +34,7 @@ interface BookingNotification {
   updated_at: string;
   read_by_admin: boolean;
   booking_id: string;
+  request_status: string;
   bookings: {
     name: string | null;
     email: string | null;
@@ -41,20 +45,12 @@ interface BookingNotification {
   } | null;
 }
 
-const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
-  { value: "sample_collected", label: "Sample Collected" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "completed", label: "Completed" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-];
-
 const AdminNotifications = () => {
   const { toast } = useToast();
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("pending");
 
   const { data: notifications, isLoading, error, refetch } = useQuery({
     queryKey: ["admin-notifications"],
@@ -70,6 +66,7 @@ const AdminNotifications = () => {
           updated_at, 
           read_by_admin,
           booking_id,
+          request_status,
           bookings (
             id, 
             name, 
@@ -146,6 +143,7 @@ const AdminNotifications = () => {
         .from("booking_notifications")
         .update({
           admin_action: status,
+          request_status: status,
           read_by_admin: true,
           updated_at: new Date().toISOString(),
         })
@@ -175,6 +173,29 @@ const AdminNotifications = () => {
           [notificationId]: original?.admin_action || "pending",
         };
       });
+    }
+  };
+
+  const moveToNextStatus = async (notification: BookingNotification) => {
+    const currentStatus = notification.request_status || notification.admin_action || "pending";
+    let nextStatus: string;
+
+    switch (currentStatus) {
+      case "pending":
+        nextStatus = "sample_collected";
+        break;
+      case "sample_collected":
+        nextStatus = "report_generated";
+        break;
+      case "report_generated":
+        nextStatus = "completed";
+        break;
+      default:
+        nextStatus = currentStatus;
+    }
+
+    if (nextStatus !== currentStatus) {
+      await handleStatusChange(notification.id, nextStatus);
     }
   };
 
@@ -215,6 +236,12 @@ const AdminNotifications = () => {
             <AlertCircle className="h-3 w-3" /> In Progress
           </Badge>
         );
+      case "report_generated":
+        return (
+          <Badge variant="outline" className="flex items-center gap-1 bg-orange-50 text-orange-700 border-orange-200">
+            <AlertCircle className="h-3 w-3" /> Report Generated
+          </Badge>
+        );
       case "completed":
         return (
           <Badge variant="outline" className="flex items-center gap-1 bg-green-50 text-green-700 border-green-200">
@@ -223,19 +250,74 @@ const AdminNotifications = () => {
         );
       case "approved":
         return (
-          <Badge variant="success" className="flex items-center gap-1">
+          <Badge className="flex items-center gap-1 bg-green-100 text-green-700">
             <CheckCircle className="h-3 w-3" /> Approved
           </Badge>
         );
       case "rejected":
         return (
-          <Badge variant="destructive" className="flex items-center gap-1">
+          <Badge className="flex items-center gap-1 bg-red-100 text-red-700">
             <X className="h-3 w-3" /> Rejected
           </Badge>
         );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const filteredNotifications = notifications?.filter(notification => {
+    const status = notification.request_status || notification.admin_action || "pending";
+    
+    if (activeTab === "pending") {
+      return status === "pending";
+    } else if (activeTab === "sample_collected") {
+      return status === "sample_collected" || status === "report_generated";
+    } else if (activeTab === "completed") {
+      return status === "completed";
+    }
+    
+    return true;
+  });
+
+  const getNextActionButton = (notification: BookingNotification) => {
+    const status = notification.request_status || notification.admin_action || "pending";
+    
+    if (status === "pending") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+          onClick={() => moveToNextStatus(notification)}
+        >
+          Move to Sample Collected <ArrowRight className="h-3 w-3 ml-1" />
+        </Button>
+      );
+    } else if (status === "sample_collected") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1 text-yellow-600 border-yellow-200 hover:bg-yellow-50"
+          onClick={() => moveToNextStatus(notification)}
+        >
+          Move to Report Generated <ArrowRight className="h-3 w-3 ml-1" />
+        </Button>
+      );
+    } else if (status === "report_generated") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1 text-green-600 border-green-200 hover:bg-green-50"
+          onClick={() => moveToNextStatus(notification)}
+        >
+          Mark as Completed <CheckCircle className="h-3 w-3 ml-1" />
+        </Button>
+      );
+    }
+    
+    return null;
   };
 
   if (isLoading) {
@@ -259,107 +341,96 @@ const AdminNotifications = () => {
 
   return (
     <div className="space-y-4">
-      {notifications && notifications.length > 0 ? (
-        notifications.map((notification) => (
-          <div
-            key={notification.id}
-            className={`p-4 border rounded-lg transition-all ${
-              notification.read_by_admin ? "bg-white" : "bg-blue-50 border-blue-200"
-            } ${expandedRows[notification.id] ? "shadow-md" : ""}`}
-          >
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                {!notification.read_by_admin && (
-                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                )}
-                <div>
-                  <h3 className="font-medium">
-                    {notification.bookings?.name || "Unknown User"}
-                  </h3>
-                  <p className="text-sm text-gray-600">{notification.message}</p>
-                </div>
-              </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid grid-cols-3 w-full mb-4">
+          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="sample_collected">In Process</TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
+        </TabsList>
 
-              <div className="flex items-center gap-2">
-                {getStatusBadge(statuses[notification.id] || "pending")}
-                {statuses[notification.id] !== "completed" && (
-                  <div className="relative">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setOpenDropdown(openDropdown === notification.id ? null : notification.id)}
-                    >
-                      Change Status
-                    </Button>
-                    {openDropdown === notification.id && (
-                      <div className="absolute z-10 mt-2 w-40 bg-white border rounded shadow">
-                        {STATUS_OPTIONS.filter(opt => opt.value !== statuses[notification.id]).map((opt) => (
-                          <div
-                            key={opt.value}
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => handleStatusChange(notification.id, opt.value)}
-                          >
-                            {opt.label}
-                          </div>
-                        ))}
-                      </div>
+        <TabsContent value={activeTab} className="mt-0">
+          {filteredNotifications && filteredNotifications.length > 0 ? (
+            filteredNotifications.map((notification) => (
+              <div
+                key={notification.id}
+                className={`p-4 border rounded-lg transition-all mb-4 ${
+                  notification.read_by_admin ? "bg-white" : "bg-blue-50 border-blue-200"
+                } ${expandedRows[notification.id] ? "shadow-md" : ""}`}
+              >
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    {!notification.read_by_admin && (
+                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                     )}
+                    <div>
+                      <h3 className="font-medium">
+                        {notification.bookings?.name || "Unknown User"}
+                      </h3>
+                      <p className="text-sm text-gray-600">{notification.message}</p>
+                    </div>
                   </div>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => toggleRow(notification.id)}
-                >
-                  {expandedRows[notification.id] ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
 
-            {expandedRows[notification.id] && (
-              <div className="mt-4 border-t pt-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Contact</p>
-                    <p>{notification.bookings?.email}</p>
-                    <p>{notification.bookings?.phone}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Appointment</p>
-                    <p>Date: {new Date(notification.bookings?.appointment_date).toLocaleDateString()}</p>
-                    <p>Time: {notification.bookings?.appointment_time}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 items-center">
-                  {!notification.read_by_admin && (
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(notification.request_status || notification.admin_action || "pending")}
                     <Button
                       variant="ghost"
-                      size="sm"
-                      onClick={() => markAsRead(notification.id)}
+                      size="icon"
+                      onClick={() => toggleRow(notification.id)}
                     >
-                      Mark as read
+                      {expandedRows[notification.id] ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
                     </Button>
-                  )}
+                  </div>
+                </div>
+
+                {expandedRows[notification.id] && (
+                  <div className="mt-4 border-t pt-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Contact</p>
+                        <p>{notification.bookings?.email}</p>
+                        <p>{notification.bookings?.phone}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Appointment</p>
+                        <p>Date: {new Date(notification.bookings?.appointment_date).toLocaleDateString()}</p>
+                        <p>Time: {notification.bookings?.appointment_time}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 items-center justify-between mt-4">
+                      <div>
+                        {!notification.read_by_admin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => markAsRead(notification.id)}
+                          >
+                            Mark as read
+                          </Button>
+                        )}
+                      </div>
+                      {getNextActionButton(notification)}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-2 text-xs text-gray-500">
+                  {new Date(notification.created_at).toLocaleString()}
                 </div>
               </div>
-            )}
-
-            <div className="mt-2 text-xs text-gray-500">
-              {new Date(notification.created_at).toLocaleString()}
+            ))
+          ) : (
+            <div className="py-12 text-center">
+              <Bell className="h-12 w-12 text-gray-300 mx-auto" />
+              <p className="mt-2 text-gray-500">No notifications in this category</p>
             </div>
-          </div>
-        ))
-      ) : (
-        <div className="py-12 text-center">
-          <Bell className="h-12 w-12 text-gray-300 mx-auto" />
-          <p className="mt-2 text-gray-500">No notifications yet</p>
-        </div>
-      )}
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
