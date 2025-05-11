@@ -5,8 +5,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
-import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Book from "./pages/Book";
 import Auth from "./pages/Auth";
@@ -25,39 +23,17 @@ const App: React.FC = () => (
       <Toaster />
       <Sonner />
       <Router>
-        <AuthProvider>
-          <Navigation />
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/book" element={
-              <ProtectedRoute>
-                <Book />
-              </ProtectedRoute>
-            } />
-            <Route path="/notifications" element={
-              <ProtectedRoute>
-                <Notifications />
-              </ProtectedRoute>
-            } />
-            <Route path="/manage-tests" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <ManageTests />
-              </ProtectedRoute>
-            } />
-            <Route path="/role-config" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <RoleConfig />
-              </ProtectedRoute>
-            } />
-            <Route path="/master-data" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <MasterData />
-              </ProtectedRoute>
-            } />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
+        <Navigation />
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/book" element={<Book />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/manage-tests" element={<ManageTests />} />
+          <Route path="/role-config" element={<RoleConfig />} />
+          <Route path="/master-data" element={<MasterData />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </Router>
     </TooltipProvider>
   </QueryClientProvider>
