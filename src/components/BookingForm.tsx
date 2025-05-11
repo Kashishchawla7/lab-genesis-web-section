@@ -1,14 +1,14 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { z } from "zod";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon, Phone, X, ChevronUp, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { useToast } from "@/components/ui/use-toast";
+import { z } from "zod"
+import { format } from "date-fns"
+import { Calendar as CalendarIcon, Phone, X, ChevronUp, ChevronDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -16,23 +16,23 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+} from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/useAuth";
 
 interface Test {
@@ -68,6 +68,13 @@ interface FilterState {
   levels: string[];
 }
 
+// Add booking status enum
+export enum BookingStatus {
+  PENDING = 'pending',
+  SAMPLE_COLLECTED = 'sample_collected',
+  COMPLETED = 'completed'
+}
+
 const formSchema = z.object({
   pincode: z.string().min(6, { message: "Please enter a valid pincode." }),
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -77,11 +84,45 @@ const formSchema = z.object({
   gender: z.string({ required_error: "Please select your gender." }),
   address: z.string().min(25, { message: "Address must be at least 25 characters." }),
   testPackage: z.string({ required_error: "Please select a test package." }),
-  // pincode: z.string().min(6, { message: "Please enter a valid pin code." }),
-  iAuthorize: z.boolean().refine((value) => value === true, {
-    message: 'Please authorize us to contact you.',
-  }),
 });
+
+// Add this component before the main BookingForm component
+const BookingStatusBadge = ({ status, onUpdate }: { status: BookingStatus, onUpdate: (newStatus: BookingStatus) => void }) => {
+  const statusColors = {
+    [BookingStatus.PENDING]: "bg-yellow-100 text-yellow-800",
+    [BookingStatus.SAMPLE_COLLECTED]: "bg-blue-100 text-blue-800",
+    [BookingStatus.COMPLETED]: "bg-green-100 text-green-800"
+  };
+
+  const statusLabels = {
+    [BookingStatus.PENDING]: "Pending",
+    [BookingStatus.SAMPLE_COLLECTED]: "Sample Collected",
+    [BookingStatus.COMPLETED]: "Completed"
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColors[status]}`}>
+        {statusLabels[status]}
+      </span>
+      <Select
+        value={status}
+        onValueChange={(value) => onUpdate(value as BookingStatus)}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Update Status" />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.values(BookingStatus).map((status) => (
+            <SelectItem key={status} value={status}>
+              {statusLabels[status]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
 
 const BookingForm = () => {
   const [selectedFilters, setSelectedFilters] = useState<FilterState>({
@@ -95,7 +136,6 @@ const BookingForm = () => {
   // Add state for top 4 packages by test count
   // const [moretestcategories, setMoretestcategories] = useState<TestCategory[]>([]);
 
-  const { user } = useAuth();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -107,7 +147,6 @@ const BookingForm = () => {
       gender: "",
       address: "",
       testPackage: "",
-      iAuthorize: false,
     },
   });
 
@@ -233,10 +272,6 @@ const BookingForm = () => {
       if (!user) {
         throw new Error("Please sign in to make a booking");
       }
-
-      console.log("Creating booking with values:", values);
-      
-      // Get the package name first
       const { data: packageData, error: packageError } = await supabase
         .from("packages")
         .select("name")
@@ -249,52 +284,42 @@ const BookingForm = () => {
       }
       
       const packageName = packageData?.name || "Unknown Package";
-      
-      // Create the booking
+
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .insert({
           user_id: user.id,
           test_package_id: values.testPackage,
-          status: 'pending',
-          appointment_date: new Date().toISOString(),
-          appointment_time: "",
-          name: values.name,
-          email: values.email,
-          phone: values.phone,
-          age: parseInt(values.age, 10),
-          gender: values.gender,
+          status: BookingStatus.PENDING,
           address: values.address,
+          age: parseInt(values.age),
+          gender: values.gender,
           pincode: values.pincode,
+          phone: values.phone,
+          email: values.email,
+          name: values.name,
+          appointment_date: new Date().toISOString().split('T')[0],
+          appointment_time: new Date().toTimeString().split(' ')[0]
         })
         .select()
         .single();
 
       if (bookingError) {
-        console.error("Booking error:", bookingError);
         throw bookingError;
       }
-
-      if (!bookingData) {
-        throw new Error("No booking data returned");
-      }
-
-      console.log("Booking created successfully:", bookingData);
-
-      // Create notification for the admin with package name
+      console.log('Booking Data:', values);
       const { error: notificationError } = await supabase
         .from("booking_notifications")
         .insert({
           user_id: user.id,
-          booking_id: bookingData.id,
-          message: `New test booking for ${values.name}: ${packageName}`,
-          status: 'pending',
-          admin_action: 'pending',
-          request_status: 'pending' // Add this for the new status tracking
+          // title: "New Test Booking",
+          status: BookingStatus.PENDING,
+          created_at: new Date().toISOString(),
+          message: `New booking for test package: ${packageName} by ${values.name} at ${values.address}`,
+          booking_id: bookingData.id
         });
 
       if (notificationError) {
-        console.error("Notification error:", notificationError);
         throw notificationError;
       }
 
@@ -308,7 +333,6 @@ const BookingForm = () => {
       form.reset();
     },
     onError: (error) => {
-      console.error("Mutation error:", error);
       toast({
         title: "Booking Failed",
         description: error instanceof Error ? error.message : "An unknown error occurred",
@@ -317,8 +341,40 @@ const BookingForm = () => {
     }
   });
 
+  // Add status update mutation
+  const updateBookingStatusMutation = useMutation({
+    mutationFn: async ({ bookingId, newStatus }: { bookingId: string, newStatus: BookingStatus }) => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .update({ status: newStatus })
+        .eq("id", bookingId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Status Updated",
+        description: "Booking status has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : "Failed to update status",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Add status update function
+  const updateBookingStatus = (bookingId: string, newStatus: BookingStatus) => {
+    updateBookingStatusMutation.mutate({ bookingId, newStatus });
+  };
+
   function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("Submitting form with values:", values);
     createBookingMutation.mutate(values);
   }
 
@@ -393,9 +449,9 @@ const BookingForm = () => {
                     key={pkg.id}
                     className={cn(
                       "bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]",
-                      form.getValues("testPackage") === pkg.id && "ring-2 ring-[#004236]"
+                      form.getValues("testPackage") === pkg.name && "ring-2 ring-[#004236]"
                     )}
-                    onClick={() => form.setValue("testPackage", pkg.id)}
+                    onClick={() => form.setValue("testPackage", pkg.name)}
                   >
                     <div className="bg-gradient-to-r from-[#004236] to-[#006236] text-white p-4">
                       <h3 className="text-xl font-bold mb-1">{pkg.name}</h3>
@@ -452,12 +508,12 @@ const BookingForm = () => {
 
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="pincode"
-                      render={({ field }) => (
-                        <FormItem>
+                  <FormField
+                    control={form.control}
+                    name="testPackage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-12 bg-gray-50 border-gray-200 focus:border-[#004236]">
                               <SelectValue placeholder="Select Test Package*" />
@@ -489,13 +545,11 @@ const BookingForm = () => {
                               </SelectItem>
                             ))}
                           </SelectContent>
-                        {/* </Select> */}
+                        </Select>
                         <FormMessage />
                       </FormItem>
-                      
                     )}
                   />
-                  </div>
 
                   <FormField
                     control={form.control}
@@ -826,7 +880,7 @@ const BookingForm = () => {
                         </div>
                         {pkg.tests?.length === 0 && (
                           <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 20 20" stroke="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
                             <p className="text-gray-500 font-medium">No tests added yet</p>
@@ -851,7 +905,7 @@ const BookingForm = () => {
                     }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 11-1.414-1.414l4-4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </Button>
                   <Button
@@ -882,7 +936,7 @@ const BookingForm = () => {
 
 export default BookingForm;
 
-<style >{`
+<style jsx global>{`
   .no-scrollbar {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
