@@ -27,7 +27,7 @@ interface BookingNotification {
   message: string;
   status: string;
   admin_action: string;
-  request_status: string; // Added request_status field
+  request_status: string;
   read_by_user: boolean;
   created_at: string;
   updated_at: string;
@@ -38,7 +38,31 @@ const Notifications = () => {
   const [message, setMessage] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState("all");
+
+  // Query for user role
+  const { data: userRole } = useQuery({
+    queryKey: ["userRole", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      
+      const { data: userRoleData, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) {
+        console.error("Error fetching user role:", error);
+        return null;
+      }
+
+      return userRoleData as { role: string } | null;
+    },
+    enabled: !!user,
+  });
+
+  const isAdmin = userRole?.role === 'admin';
 
   // Query for general notifications
   const { data: generalNotifications, refetch: refetchGeneral } = useQuery({
@@ -56,13 +80,11 @@ const Notifications = () => {
 
   // Query for booking notifications
   const { data: bookingNotifications, refetch: refetchBookings } = useQuery({
-    queryKey: ["booking-notifications"],
+    queryKey: ["booking-notifications", user?.id, isAdmin],
     queryFn: async () => {
       if (!user) return [];
       
-      console.log("Fetching booking notifications for user:", user.id);
-      
-      const { data, error } = await supabase
+      let query = supabase
         .from("booking_notifications")
         .select(`
           id,
@@ -73,17 +95,23 @@ const Notifications = () => {
           request_status,
           read_by_user,
           created_at,
-          updated_at
+          updated_at,
+          user_id
         `)
-        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
+
+      // Only filter by user_id if not admin
+      if (!isAdmin) {
+        query = query.eq("user_id", user.id);
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error("Error fetching booking notifications:", error);
         throw error;
       }
       
-      console.log("Fetched booking notifications:", data);
       return data as BookingNotification[];
     },
     enabled: !!user,
@@ -114,37 +142,37 @@ const Notifications = () => {
     };
   }, [user, refetchBookings]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from("notifications")
-        .insert([
-          {
-            title,
-            message,
-            is_read: false,
-          },
-        ]);
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   try {
+  //     const { error } = await supabase
+  //       .from("notifications")
+  //       .insert([
+  //         {
+  //           title,
+  //           message,
+  //           is_read: false,
+  //         },
+  //       ]);
 
-      if (error) throw error;
+  //     if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Notification sent successfully",
-      });
+  //     toast({
+  //       title: "Success",
+  //       description: "Notification sent successfully",
+  //     });
 
-      setTitle("");
-      setMessage("");
-      refetchGeneral();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to send notification",
-      });
-    }
-  };
+  //     setTitle("");
+  //     setMessage("");
+  //     refetchGeneral();
+  //   } catch (error) {
+  //     toast({
+  //       variant: "destructive",
+  //       title: "Error",
+  //       description: "Failed to send notification",
+  //     });
+  //   }
+  // };
 
   const markAsRead = async (id: string) => {
     try {
@@ -200,9 +228,26 @@ const Notifications = () => {
     }
   };
 
+  // Get unique admin actions for tabs, excluding sample_collected as it will be handled separately
+  const uniqueAdminActions = bookingNotifications 
+    ? [...new Set(
+        bookingNotifications
+          .map(notification => notification.admin_action?.trim().toLowerCase())
+          .filter(action => action && action !== 'sample_collected')
+      )]
+    : [];
+
+  // Filter notifications based on active tab
+  const filteredNotifications = bookingNotifications?.filter(notification => {
+    const action = notification.admin_action?.trim().toLowerCase();
+    if (activeTab === "all") return true;
+    if (activeTab === "sample_collected") return action === 'sample_collected';
+    return action === activeTab;
+  });
+
   // Helper function to get status badge
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusBadge = (admin_action: string) => {
+    switch (admin_action.toLowerCase()) {
       case 'pending':
         return <Badge variant="outline" className="flex items-center gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
       case 'approved':
@@ -218,7 +263,97 @@ const Notifications = () => {
       case 'completed':
         return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Completed</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">{admin_action}</Badge>;
+    }
+  };
+
+  const handleSampleCollected = async (notificationId: string, bookingId: string) => {
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Only admin users can update sample collection status",
+      });
+      return;
+    }
+
+    try {
+      // Update the notification status
+      const { error: notificationError } = await supabase
+        .from("booking_notifications")
+        .update({ 
+          admin_action: 'sample_collected',
+          status: 'sample_collected'
+        })
+        .eq("id", notificationId);
+
+      if (notificationError) throw notificationError;
+
+      // Update the booking status
+      const { error: bookingError } = await supabase
+        .from("bookings")
+        .update({ status: 'sample_collected' })
+        .eq("id", bookingId);
+
+      if (bookingError) throw bookingError;
+
+      toast({
+        title: "Success",
+        description: "Sample collection status updated",
+      });
+
+      refetchBookings();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update sample collection status",
+      });
+    }
+  };
+
+  const handleDone = async (notificationId: string, bookingId: string) => {
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Only admin users can mark bookings as completed",
+      });
+      return;
+    }
+
+    try {
+      // Update the notification status
+      const { error: notificationError } = await supabase
+        .from("booking_notifications")
+        .update({ 
+          admin_action: 'completed',
+          status: 'completed'
+        })
+        .eq("id", notificationId);
+
+      if (notificationError) throw notificationError;
+
+      // Update the booking status
+      const { error: bookingError } = await supabase
+        .from("bookings")
+        .update({ status: 'completed' })
+        .eq("id", bookingId);
+
+      if (bookingError) throw bookingError;
+
+      toast({
+        title: "Success",
+        description: "Booking marked as completed",
+      });
+
+      refetchBookings();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to mark booking as completed",
+      });
     }
   };
 
@@ -229,202 +364,172 @@ const Notifications = () => {
           Notifications
         </h1>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="general">General Notifications</TabsTrigger>
-            <TabsTrigger value="bookings">Booking Updates</TabsTrigger>
+        <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
+          <TabsList className="flex flex-row w-full overflow-x-auto whitespace-nowrap gap-2">
+            <TabsTrigger value="all">All Notifications</TabsTrigger>
+            {/* <TabsTrigger value="sample_collected">Sample Collected</TabsTrigger> */}
+            {uniqueAdminActions.map((action) => (
+              <TabsTrigger key={action} value={action}>
+                {action.replace(/_/g, ' ').toUpperCase()}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="general">
-            {/* General Notifications Form and List */}
-            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-              <h2 className="text-xl font-semibold mb-4">Send New Notification</h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Title</label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter notification title"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Message</label>
-                  <Textarea
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Enter notification message"
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full">
-                  Send Notification
-                </Button>
-              </form>
-            </div>
-
+          <TabsContent value="all" className="mt-6">
             <div className="space-y-4">
-              {generalNotifications?.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`p-4 rounded-lg shadow-md ${
-                    notification.is_read ? "bg-gray-50" : "bg-white"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start gap-2">
-                      <Bell className={`h-5 w-5 mt-1 ${
-                        notification.is_read ? "text-gray-400" : "text-blue-500"
-                      }`} />
-                      <div>
-                        <h3 className="font-medium">{notification.title}</h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">
-                          {new Date(notification.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {!notification.is_read && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => markAsRead(notification.id)}
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => deleteNotification(notification.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              {generalNotifications?.length === 0 && (
-                <div className="text-center p-8">
-                  <Bell className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-500">No notifications</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="bookings">
-            {/* Booking Notifications */}
-            <div className="space-y-4">
-              {bookingNotifications?.map((notification) => (
-                <Card 
-                  key={notification.id}
-                  className={`${!notification.read_by_user ? "border-l-4 border-blue-500" : ""}`}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between">
-                      <CardTitle className="text-lg">Test Booking Update</CardTitle>
-                      {getStatusBadge(notification.admin_action)}
-                    </div>
-                    <CardDescription>
-                      {new Date(notification.created_at).toLocaleString()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="mb-2">{notification.message}</p>
-                    
-                    {/* New - Request Status Section */}
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                        <span className="text-sm text-gray-500">Test Status:</span>
-                        <div className="mt-1 sm:mt-0">
-                          {getStatusBadge(notification.request_status || 'pending')}
-                        </div>
-                      </div>
-                      
-                      {/* Status Timeline */}
-                      <div className="relative mt-6 border-l-2 border-gray-200 pl-8 ml-2 space-y-8">
-                        <div className={`relative ${notification.request_status ? 'text-blue-600' : 'text-gray-500'}`}>
-                          <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 border-2 border-white">
-                            <Check className="h-3 w-3" />
-                          </div>
-                          <p className="font-medium">Booking Received</p>
-                          <p className="text-xs text-gray-500">{new Date(notification.created_at).toLocaleString()}</p>
-                        </div>
-                        
-                        {(['sample_collected', 'report_generated', 'completed'].includes(notification.request_status || '')) && (
-                          <div className="relative text-blue-600">
-                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 border-2 border-white">
-                              <Check className="h-3 w-3" />
-                            </div>
-                            <p className="font-medium">Sample Collected</p>
-                            <p className="text-xs text-gray-500">Processing</p>
-                          </div>
-                        )}
-                        
-                        {(['report_generated', 'completed'].includes(notification.request_status || '')) && (
-                          <div className="relative text-blue-600">
-                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 border-2 border-white">
-                              <Check className="h-3 w-3" />
-                            </div>
-                            <p className="font-medium">Report Generated</p>
-                            <p className="text-xs text-gray-500">Ready for review</p>
-                          </div>
-                        )}
-                        
-                        {(['completed'].includes(notification.request_status || '')) && (
-                          <div className="relative text-blue-600">
-                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-green-100 border-2 border-white">
-                              <CheckCircle className="h-3 w-3" />
-                            </div>
-                            <p className="font-medium">Completed</p>
-                            <p className="text-xs text-gray-500">Your test is complete</p>
-                          </div>
-                        )}
-                        
-                        {!['completed'].includes(notification.request_status || '') && (
-                          <div className="relative text-gray-400">
-                            <div className="absolute -left-[2.1rem] flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 border-2 border-white">
-                              <Clock className="h-3 w-3" />
-                            </div>
-                            <p className="font-medium">Completed</p>
-                            <p className="text-xs">Pending</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center mt-4">
-                      <div className="text-sm text-gray-500">
-                        Last updated: {new Date(notification.updated_at).toLocaleString()}
-                      </div>
+              {filteredNotifications?.map((notification) => (
+                <Card key={notification.id} className={`${!notification.read_by_user ? 'border-blue-500' : ''}`}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {notification.message}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
                       {!notification.read_by_user && (
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => markBookingNotificationAsRead(notification.id)}
                         >
-                          Mark as read
+                          Mark as Read
                         </Button>
                       )}
+                      {isAdmin && notification.admin_action.toLowerCase() === 'pending' && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleSampleCollected(notification.id, notification.booking_id)}
+                        >
+                          Sample Collected
+                        </Button>
+                      )}
+                      {isAdmin && notification.admin_action.toLowerCase() === 'sample_collected' && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleDone(notification.id, notification.booking_id)}
+                        >
+                          Done
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(notification.admin_action)}
+                        <span className="text-sm text-gray-500">
+                          {new Date(notification.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
-              
-              {bookingNotifications?.length === 0 && (
-                <div className="text-center p-8">
-                  <Bell className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-500">No booking notifications</p>
-                </div>
-              )}
             </div>
           </TabsContent>
+
+          <TabsContent value="sample_collected" className="mt-6">
+            <div className="space-y-4">
+              {filteredNotifications
+                ?.filter(notification => notification.admin_action.toLowerCase() === 'sample_collected')
+                .map((notification) => (
+                  <Card key={notification.id} className={`${!notification.read_by_user ? 'border-blue-500' : ''}`}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        {notification.message}
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        {!notification.read_by_user && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => markBookingNotificationAsRead(notification.id)}
+                          >
+                            Mark as Read
+                          </Button>
+                        )}
+                        {isAdmin && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleDone(notification.id, notification.booking_id)}
+                          >
+                            Done
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(notification.admin_action)}
+                          <span className="text-sm text-gray-500">
+                            {new Date(notification.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+          </TabsContent>
+
+          {uniqueAdminActions.map((action) => (
+            <TabsContent key={action} value={action} className="mt-6">
+              <div className="space-y-4">
+                {filteredNotifications
+                  ?.filter(notification => notification.admin_action.toLowerCase() === action)
+                  .map((notification) => (
+                    <Card key={notification.id} className={`${!notification.read_by_user ? 'border-blue-500' : ''}`}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">
+                          {notification.message}
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          {!notification.read_by_user && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => markBookingNotificationAsRead(notification.id)}
+                            >
+                              Mark as Read
+                            </Button>
+                          )}
+                          {isAdmin && notification.admin_action.toLowerCase() === 'pending' && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleSampleCollected(notification.id, notification.booking_id)}
+                            >
+                              Sample Collected
+                            </Button>
+                          )}
+                          {isAdmin && notification.admin_action.toLowerCase() === 'sample_collected' && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleDone(notification.id, notification.booking_id)}
+                            >
+                              Done
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(notification.admin_action)}
+                            <span className="text-sm text-gray-500">
+                              {new Date(notification.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+            </TabsContent>
+          ))}
         </Tabs>
       </div>
     </div>

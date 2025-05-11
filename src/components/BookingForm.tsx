@@ -244,26 +244,21 @@ const BookingForm = () => {
     // Check if package matches selected type filters
     const typeMatch = types.length === 0 || types.includes(pkg.test_type_mt.name);
 
-    console.log('Package:', pkg)
-    console.log('Type:', types)
-    console.log('Level:', levels)
     // Check if package matches selected level filters
     const levelMatch = levels.length === 0 || levels.includes(pkg.package_level_mt.name);
 
-    // For debugging - log the package level data
-    console.log('Package:', pkg.name, 'Level:', pkg.package_level_mt.name, 'Selected Levels:', levels);
-
     // Return true only if both type and level conditions are met
     return typeMatch && levelMatch;
-  });
+  }) || [];
 
-  if (filteredPackages?.length === 0 || filteredPackages === undefined) {
-    filteredPackages = categories;
+  // If no packages match the filters, show all packages
+  if (filteredPackages.length === 0) {
+    filteredPackages = categories || [];
   }
 
   // Log the available package levels for debugging
-  console.log('Available Levels:', levels?.map(level => level.name));
-  console.log('Selected Filters:', selectedFilters);
+  // console.log('Available Levels:', levels?.map(level => level.name));
+  // console.log('Selected Filters:', selectedFilters);
 
   const createBookingMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
@@ -279,7 +274,7 @@ const BookingForm = () => {
         .single();
         
       if (packageError) {
-        console.error("Error fetching package name:", packageError);
+        // console.error("Error fetching package name:", packageError);
         throw packageError;
       }
       
@@ -307,7 +302,7 @@ const BookingForm = () => {
       if (bookingError) {
         throw bookingError;
       }
-      console.log('Booking Data:', values);
+      // console.log('Booking Data:', values);
       const { error: notificationError } = await supabase
         .from("booking_notifications")
         .insert({
@@ -380,14 +375,14 @@ const BookingForm = () => {
 
   // Handle filter selection
   const handleFilterSelection = (value: string, filterType: 'types' | 'levels') => {
-    console.log('Setting filter:', filterType, value);
+    // console.log('Setting filter:', filterType, value);
     setSelectedFilters(prev => {
       const currentFilters = prev[filterType];
       const newFilters = currentFilters.includes(value)
         ? currentFilters.filter(filter => filter !== value)
         : [...currentFilters, value];
       
-      console.log(`New ${filterType} filters:`, newFilters);
+      // console.log(`New ${filterType} filters:`, newFilters);
       return {
         ...prev,
         [filterType]: newFilters
@@ -408,7 +403,7 @@ const BookingForm = () => {
 
   
 
-  console.log('Filtered packages:', filteredPackages.map(pkg => pkg.name));
+  // console.log('Filtered packages:', filteredPackages.map(pkg => pkg.name));
 
   const scrollCarousel = (direction: "left" | "right") => {
     if (carouselRef.current) {
@@ -794,104 +789,110 @@ const BookingForm = () => {
               <div 
                 className="flex gap-6 overflow-x-auto pb-4 scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
               >
-                {filteredPackages.map((pkg, index) => (
-                  <div
-                    key={pkg.id}
-                    className={cn(
-                      "bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group min-w-[300px] flex-shrink-0",
-                      index < 3 ? "flex-shrink-0" : "flex-shrink-0 transform translate-x-0 transition-transform duration-300"
-                    )}
-                  >
-                    <div className="p-6 space-y-4">
-                      {/* Header with Name and Badges */}
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <h3 className="font-semibold text-xl text-[#004236] group-hover:text-blue-600 transition-colors">
-                            {pkg.name}
-                          </h3>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {pkg.test_type_mt?.name && (
-                            <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium inline-flex items-center">
-                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
-                              {pkg.test_type_mt.name}
-                            </span>
-                          )}
-                          {pkg.package_level_mt?.name && (
-                            <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium inline-flex items-center">
-                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
-                              {pkg.package_level_mt.name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Price Section */}
-                      <div className="flex items-center gap-3 pb-4 border-b">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-bold text-blue-600">₹{pkg.new_price}/-</span>
-                          {pkg.old_price && (
-                            <span className="text-lg line-through text-gray-400 relative">
-                              <span className="absolute inset-0 h-[2px] bg-red-400 top-1/2 -rotate-12"></span>
-                              ₹{pkg.old_price}/-
-                            </span>
-                          )}
-                        </div>
-                        {pkg.old_price && (
-                          <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                            Save ₹{pkg.old_price - pkg.new_price}/-
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Test Preview Tiles */}
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-600">Included Tests:</span>
-                          <Button
-                            variant="ghost"
-                            onClick={() => setExpandedCategory(
-                              expandedCategory === pkg.id ? null : pkg.id
-                            )}
-                            className="text-blue-600 hover:text-blue-700 p-0 h-auto font-medium"
-                          >
-                            {expandedCategory === pkg.id ? 'View Less' : 'View All'}
-                          </Button>
-                        </div>
-                        <div className={cn(
-                          "grid grid-cols-1 gap-2 transition-all duration-300",
-                          expandedCategory === pkg.id ? "overflow-y-auto max-h-[200px]" : "overflow-hidden max-h-[200px]"
-                        )}>
-                          {pkg.tests?.map((test) => (
-                            <div
-                              key={test.id}
-                              className="bg-gray-50 rounded-lg p-3 border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all"
-                            >
-                              <div className="flex items-start gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                </svg>
-                                <span className="text-sm text-gray-700 font-medium line-clamp-2">
-                                  {test.name}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        {pkg.tests?.length === 0 && (
-                          <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                            </svg>
-                            <p className="text-gray-500 font-medium">No tests added yet</p>
+                {filteredPackages && filteredPackages.length > 0 ? (
+                  filteredPackages.map((pkg, index) => (
+                    <div
+                      key={pkg.id}
+                      className={cn(
+                        "bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group min-w-[300px] flex-shrink-0",
+                        index < 3 ? "flex-shrink-0" : "flex-shrink-0 transform translate-x-0 transition-transform duration-300"
+                      )}
+                    >
+                      <div className="p-6 space-y-4">
+                        {/* Header with Name and Badges */}
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between">
+                            <h3 className="font-semibold text-xl text-[#004236] group-hover:text-blue-600 transition-colors">
+                              {pkg.name}
+                            </h3>
                           </div>
-                        )}
+                          <div className="flex flex-wrap gap-2">
+                            {pkg.test_type_mt?.name && (
+                              <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium inline-flex items-center">
+                                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                                {pkg.test_type_mt.name}
+                              </span>
+                            )}
+                            {pkg.package_level_mt?.name && (
+                              <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium inline-flex items-center">
+                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
+                                {pkg.package_level_mt.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Price Section */}
+                        <div className="flex items-center gap-3 pb-4 border-b">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-bold text-blue-600">₹{pkg.new_price}/-</span>
+                            {pkg.old_price && (
+                              <span className="text-lg line-through text-gray-400 relative">
+                                <span className="absolute inset-0 h-[2px] bg-red-400 top-1/2 -rotate-12"></span>
+                                ₹{pkg.old_price}/-
+                              </span>
+                            )}
+                          </div>
+                          {pkg.old_price && (
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              Save ₹{pkg.old_price - pkg.new_price}/-
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Test Preview Tiles */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-600">Included Tests:</span>
+                            <Button
+                              variant="ghost"
+                              onClick={() => setExpandedCategory(
+                                expandedCategory === pkg.id ? null : pkg.id
+                              )}
+                              className="text-blue-600 hover:text-blue-700 p-0 h-auto font-medium"
+                            >
+                              {expandedCategory === pkg.id ? 'View Less' : 'View All'}
+                            </Button>
+                          </div>
+                          <div className={cn(
+                            "grid grid-cols-1 gap-2 transition-all duration-300",
+                            expandedCategory === pkg.id ? "overflow-y-auto max-h-[200px]" : "overflow-hidden max-h-[200px]"
+                          )}>
+                            {pkg.tests?.map((test) => (
+                              <div
+                                key={test.id}
+                                className="bg-gray-50 rounded-lg p-3 border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                  </svg>
+                                  <span className="text-sm text-gray-700 font-medium line-clamp-2">
+                                    {test.name}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {pkg.tests?.length === 0 && (
+                            <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                              </svg>
+                              <p className="text-gray-500 font-medium">No tests added yet</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="w-full text-center py-8">
+                    <p className="text-gray-500">No packages available</p>
                   </div>
-                ))}
+                )}
               </div>
-              {filteredPackages.length > 3 && (
+              {filteredPackages && filteredPackages.length > 3 && (
                 <>
                   <Button
                     variant="outline"

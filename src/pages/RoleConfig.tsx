@@ -135,9 +135,10 @@ const RoleConfig = () => {
         Role Configuration
       </h1>
 
-      {/* Add Role Form */}
-      <div className="mb-8">
+       {/* Add Role Form */}
+       <div className="mb-8">
         <div className="bg-white p-6 rounded-lg shadow-md">
+        {/* <div className="bg-white p-6 rounded-lg shadow-md"> */}
           <h2 className="text-xl font-semibold mb-4">Create New Role</h2>
           <div className="flex gap-4">
             <Input
@@ -148,13 +149,13 @@ const RoleConfig = () => {
             <Button onClick={createRole}>
               <Plus className="h-4 w-4 mr-2" />
               Create Role
-            </Button>image.png
+              </Button>image.png
           </div>
         </div>
       </div>
 
-      {/* Role-Screen Matrix */}
-      <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+       {/* Role-Screen Matrix */}
+       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
         <table className="min-w-full">
           <thead>
             <tr className="border-b">

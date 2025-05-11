@@ -1,4 +1,3 @@
-
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -17,14 +16,27 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     queryFn: async () => {
       if (!user) return null;
 
-      const { data: roleData, error: roleError } = await supabase 
+      // First get the user's role from user_roles table
+      const { data: userRoleData, error: userRoleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (userRoleError) {
+        console.error("Error fetching user role:", userRoleError);
+        return null;
+      }
+
+      // Then get the role details from roles table
+      const { data: roleData, error: roleError } = await supabase
         .from("roles")
         .select("name")
-        .eq("id", user.id)
+        .eq("name", userRoleData.role)
         .single();
 
       if (roleError) {
-        console.error("Error fetching user role:", roleError);
+        console.error("Error fetching role details:", roleError);
         return null;
       }
 

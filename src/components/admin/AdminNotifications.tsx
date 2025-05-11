@@ -1,19 +1,15 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
-  Check,
-  X,
   Clock,
   AlertCircle,
   CheckCircle,
   ChevronDown,
   ChevronUp,
-  ArrowRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,28 +24,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface BookingNotification {
   id: string;
   message: string;
-  status: string;
   admin_action: string;
   created_at: string;
-  updated_at: string;
   read_by_admin: boolean;
-  booking_id: string;
-  request_status: string;
   bookings: {
     name: string | null;
     email: string | null;
     phone: string | null;
     appointment_date: string;
     appointment_time: string;
-    test_package_id: string;
   } | null;
 }
 
 const AdminNotifications = () => {
   const { toast } = useToast();
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("pending");
 
   const { data: notifications, isLoading, error, refetch } = useQuery({
@@ -60,21 +49,15 @@ const AdminNotifications = () => {
         .select(`
           id, 
           message, 
-          status, 
           admin_action, 
           created_at, 
-          updated_at, 
           read_by_admin,
-          booking_id,
-          request_status,
           bookings (
-            id, 
             name, 
             email, 
             phone,
             appointment_date,
-            appointment_time,
-            test_package_id
+            appointment_time
           )
         `)
         .order("created_at", { ascending: false });
@@ -84,37 +67,6 @@ const AdminNotifications = () => {
     },
   });
 
-  useEffect(() => {
-    if (notifications && notifications.length > 0) {
-      const initialStatuses: Record<string, string> = {};
-      notifications.forEach(notification => {
-        initialStatuses[notification.id] = notification.admin_action || "pending";
-      });
-      setStatuses(initialStatuses);
-    }
-  }, [notifications]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("admin-booking-notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "booking_notifications",
-        },
-        () => {
-          refetch();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
-
   const toggleRow = (id: string) => {
     setExpandedRows(prev => ({
       ...prev,
@@ -123,29 +75,12 @@ const AdminNotifications = () => {
   };
 
   const handleStatusChange = async (notificationId: string, status: string) => {
-    const currentStatus = statuses[notificationId];
-    if (currentStatus === "completed") {
-      toast({
-        variant: "destructive",
-        title: "Cannot Update Status",
-        description: "Status cannot be changed once it is completed",
-      });
-      return;
-    }
-
     try {
-      setStatuses(prev => ({
-        ...prev,
-        [notificationId]: status,
-      }));
-
       const { error } = await supabase
         .from("booking_notifications")
         .update({
           admin_action: status,
-          request_status: status,
           read_by_admin: true,
-          updated_at: new Date().toISOString(),
         })
         .eq("id", notificationId);
 
@@ -156,62 +91,12 @@ const AdminNotifications = () => {
         description: `Notification status updated to ${status}`,
       });
 
-      setOpenDropdown(null);
       refetch();
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Update Failed",
-        description:
-          error instanceof Error ? error.message : "An unknown error occurred",
-      });
-
-      setStatuses(prev => {
-        const original = notifications?.find(n => n.id === notificationId);
-        return {
-          ...prev,
-          [notificationId]: original?.admin_action || "pending",
-        };
-      });
-    }
-  };
-
-  const moveToNextStatus = async (notification: BookingNotification) => {
-    const currentStatus = notification.request_status || notification.admin_action || "pending";
-    let nextStatus: string;
-
-    switch (currentStatus) {
-      case "pending":
-        nextStatus = "sample_collected";
-        break;
-      case "sample_collected":
-        nextStatus = "report_generated";
-        break;
-      case "report_generated":
-        nextStatus = "completed";
-        break;
-      default:
-        nextStatus = currentStatus;
-    }
-
-    if (nextStatus !== currentStatus) {
-      await handleStatusChange(notification.id, nextStatus);
-    }
-  };
-
-  const markAsRead = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("booking_notifications")
-        .update({ read_by_admin: true })
-        .eq("id", id);
-      if (error) throw error;
-      refetch();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to mark notification as read",
+        description: "Failed to update notification status",
       });
     }
   };
@@ -230,34 +115,10 @@ const AdminNotifications = () => {
             <AlertCircle className="h-3 w-3" /> Sample Collected
           </Badge>
         );
-      case "in_progress":
-        return (
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" /> In Progress
-          </Badge>
-        );
-      case "report_generated":
-        return (
-          <Badge variant="outline" className="flex items-center gap-1 bg-orange-50 text-orange-700 border-orange-200">
-            <AlertCircle className="h-3 w-3" /> Report Generated
-          </Badge>
-        );
-      case "completed":
+      case "done":
         return (
           <Badge variant="outline" className="flex items-center gap-1 bg-green-50 text-green-700 border-green-200">
-            <CheckCircle className="h-3 w-3" /> Completed
-          </Badge>
-        );
-      case "approved":
-        return (
-          <Badge className="flex items-center gap-1 bg-green-100 text-green-700">
-            <CheckCircle className="h-3 w-3" /> Approved
-          </Badge>
-        );
-      case "rejected":
-        return (
-          <Badge className="flex items-center gap-1 bg-red-100 text-red-700">
-            <X className="h-3 w-3" /> Rejected
+            <CheckCircle className="h-3 w-3" /> Done
           </Badge>
         );
       default:
@@ -266,58 +127,18 @@ const AdminNotifications = () => {
   };
 
   const filteredNotifications = notifications?.filter(notification => {
-    const status = notification.request_status || notification.admin_action || "pending";
-    
-    if (activeTab === "pending") {
-      return status === "pending";
-    } else if (activeTab === "sample_collected") {
-      return status === "sample_collected" || status === "report_generated";
-    } else if (activeTab === "completed") {
-      return status === "completed";
-    }
-    
-    return true;
+    const status = notification.admin_action || "pending";
+    return status === activeTab;
   });
 
-  const getNextActionButton = (notification: BookingNotification) => {
-    const status = notification.request_status || notification.admin_action || "pending";
-    
-    if (status === "pending") {
-      return (
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
-          onClick={() => moveToNextStatus(notification)}
-        >
-          Move to Sample Collected <ArrowRight className="h-3 w-3 ml-1" />
-        </Button>
-      );
-    } else if (status === "sample_collected") {
-      return (
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-1 text-yellow-600 border-yellow-200 hover:bg-yellow-50"
-          onClick={() => moveToNextStatus(notification)}
-        >
-          Move to Report Generated <ArrowRight className="h-3 w-3 ml-1" />
-        </Button>
-      );
-    } else if (status === "report_generated") {
-      return (
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-1 text-green-600 border-green-200 hover:bg-green-50"
-          onClick={() => moveToNextStatus(notification)}
-        >
-          Mark as Completed <CheckCircle className="h-3 w-3 ml-1" />
-        </Button>
-      );
-    }
-    
-    return null;
+  const getStatusOptions = (currentStatus: string) => {
+    const options = [
+      { value: "pending", label: "Pending" },
+      { value: "sample_collected", label: "Sample Collected" },
+      { value: "done", label: "Done" },
+    ];
+
+    return options.filter(option => option.value !== currentStatus);
   };
 
   if (isLoading) {
@@ -344,8 +165,8 @@ const AdminNotifications = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid grid-cols-3 w-full mb-4">
           <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="sample_collected">In Process</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsTrigger value="sample_collected">Sample Collected</TabsTrigger>
+          <TabsTrigger value="done">Done</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-0">
@@ -371,7 +192,7 @@ const AdminNotifications = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {getStatusBadge(notification.request_status || notification.admin_action || "pending")}
+                    {getStatusBadge(notification.admin_action || "pending")}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -401,19 +222,21 @@ const AdminNotifications = () => {
                       </div>
                     </div>
 
-                    <div className="flex gap-2 items-center justify-between mt-4">
-                      <div>
-                        {!notification.read_by_admin && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => markAsRead(notification.id)}
-                          >
-                            Mark as read
-                          </Button>
-                        )}
-                      </div>
-                      {getNextActionButton(notification)}
+                    <div className="flex justify-end">
+                      <Select
+                        onValueChange={(value) => handleStatusChange(notification.id, value)}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Change Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getStatusOptions(notification.admin_action || "pending").map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 )}
